@@ -1,0 +1,338 @@
+"use client"
+
+import type React from "react"
+
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import { Edit, Plus, Search, Trash } from "lucide-react"
+import { toast } from "sonner"
+
+// Datos de ejemplo
+const menuItems = [
+  {
+    id: 1,
+    name: "Paella Valenciana",
+    category: "Plato Principal",
+    price: 18.99,
+    description: "Arroz con azafrán, pollo, conejo, judías verdes y garrofón.",
+    available: true,
+    image: "/placeholder.svg?height=150&width=300&text=Paella%20Valenciana",
+  },
+  {
+    id: 2,
+    name: "Ceviche de Camarones",
+    category: "Entrada",
+    price: 12.5,
+    description: "Camarones marinados en jugo de limón con cebolla, cilantro y ají.",
+    available: true,
+    image: "/placeholder.svg?height=150&width=300&text=Ceviche%20de%20Camarones",
+  },
+  {
+    id: 3,
+    name: "Lomo Saltado",
+    category: "Plato Principal",
+    price: 16.75,
+    description: "Tiras de lomo de res salteadas con cebolla, tomate y papas fritas.",
+    available: true,
+    image: "/placeholder.svg?height=150&width=300&text=Lomo%20Saltado",
+  },
+  {
+    id: 4,
+    name: "Tiramisú",
+    category: "Postre",
+    price: 8.25,
+    description: "Postre italiano con capas de bizcocho empapado en café y crema de mascarpone.",
+    available: false,
+    image: "/placeholder.svg?height=150&width=300&text=Tiramisu",
+  },
+  {
+    id: 5,
+    name: "Ensalada César",
+    category: "Entrada",
+    price: 9.5,
+    description: "Lechuga romana, crutones, queso parmesano y aderezo César.",
+    available: true,
+    image: "/placeholder.svg?height=150&width=300&text=Ensalada%20Cesar",
+  },
+  {
+    id: 6,
+    name: "Sopa de Mariscos",
+    category: "Entrada",
+    price: 14.99,
+    description: "Sopa con variedad de mariscos, verduras y hierbas aromáticas.",
+    available: true,
+    image: "/placeholder.svg?height=150&width=300&text=Sopa%20de%20Mariscos",
+  },
+]
+
+export default function MenuPage() {
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [categoryFilter, setCategoryFilter] = useState("all")
+  const [availabilityFilter, setAvailabilityFilter] = useState("all")
+
+  const handleMenuItemSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    toast.success("Plato guardado con éxito", {
+      description: "El plato ha sido añadido al menú",
+    })
+    setIsDialogOpen(false)
+  }
+
+  const filteredItems = menuItems.filter((item) => {
+    const matchesSearch =
+      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.description.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesCategory = categoryFilter === "all" || item.category === categoryFilter
+    const matchesAvailability =
+      availabilityFilter === "all" ||
+      (availabilityFilter === "available" && item.available) ||
+      (availabilityFilter === "unavailable" && !item.available)
+
+    return matchesSearch && matchesCategory && matchesAvailability
+  })
+
+  const toggleAvailability = (id: number) => {
+    toast.success("Estado actualizado", {
+      description: "La disponibilidad del plato ha sido actualizada",
+    })
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Gestión de Menú</h1>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Nuevo Plato
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[550px]">
+            <DialogHeader>
+              <DialogTitle>Añadir Nuevo Plato</DialogTitle>
+              <DialogDescription>Complete los detalles para añadir un nuevo plato al menú</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleMenuItemSubmit}>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="name">Nombre del Plato</Label>
+                    <Input id="name" placeholder="Nombre del plato" required />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="category">Categoría</Label>
+                    <Select required>
+                      <SelectTrigger id="category">
+                        <SelectValue placeholder="Seleccionar" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Entrada">Entrada</SelectItem>
+                        <SelectItem value="Plato Principal">Plato Principal</SelectItem>
+                        <SelectItem value="Postre">Postre</SelectItem>
+                        <SelectItem value="Bebida">Bebida</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="price">Precio</Label>
+                    <Input id="price" type="number" step="0.01" placeholder="0.00" required />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="available" className="mb-2">
+                      Disponibilidad
+                    </Label>
+                    <div className="flex items-center space-x-2">
+                      <Switch id="available" defaultChecked />
+                      <Label htmlFor="available">Disponible</Label>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="description">Descripción</Label>
+                  <Input id="description" placeholder="Descripción del plato" required />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="image">Imagen</Label>
+                  <Input id="image" type="file" />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="ingredients">Ingredientes</Label>
+                  <Input id="ingredients" placeholder="Ingredientes principales" />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="allergens">Alérgenos</Label>
+                  <Input id="allergens" placeholder="Gluten, lácteos, etc." />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="submit">Guardar Plato</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle>Menú del Restaurante</CardTitle>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Buscar platos..."
+                  className="pl-8 w-full sm:w-[200px] md:w-[300px]"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Categoría" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="Entrada">Entradas</SelectItem>
+                  <SelectItem value="Plato Principal">Platos Principales</SelectItem>
+                  <SelectItem value="Postre">Postres</SelectItem>
+                  <SelectItem value="Bebida">Bebidas</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={availabilityFilter} onValueChange={setAvailabilityFilter}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Disponibilidad" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="available">Disponibles</SelectItem>
+                  <SelectItem value="unavailable">No Disponibles</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+
+      <Tabs defaultValue="grid" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="grid">Vista Cuadrícula</TabsTrigger>
+          <TabsTrigger value="list">Vista Lista</TabsTrigger>
+        </TabsList>
+        <TabsContent value="grid" className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredItems.map((item) => (
+              <Card key={item.id} className="overflow-hidden">
+                <div className="aspect-video w-full bg-muted">
+                  <img src={item.image || "/placeholder.svg"} alt={item.name} className="h-full w-full object-cover" />
+                </div>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold">{item.name}</h3>
+                    <Badge variant={item.available ? "default" : "destructive"}>
+                      {item.available ? "Disponible" : "No Disponible"}
+                    </Badge>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-sm text-muted-foreground">
+                    <span>{item.category}</span>
+                    <span>${item.price.toFixed(2)}</span>
+                  </div>
+                  <p className="mt-2 text-sm line-clamp-2">{item.description}</p>
+                </CardContent>
+                <CardFooter className="p-4 pt-0 flex justify-between">
+                  <Button variant="outline" size="sm" onClick={() => toggleAvailability(item.id)}>
+                    {item.available ? "Marcar No Disponible" : "Marcar Disponible"}
+                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="icon">
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon">
+                      <Trash className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+        <TabsContent value="list" className="space-y-4">
+          <Card>
+            <CardContent className="p-0">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="p-4 text-left font-medium">Nombre</th>
+                    <th className="p-4 text-left font-medium">Categoría</th>
+                    <th className="p-4 text-left font-medium">Precio</th>
+                    <th className="p-4 text-left font-medium">Disponibilidad</th>
+                    <th className="p-4 text-right font-medium">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredItems.map((item) => (
+                    <tr key={item.id} className="border-b">
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={item.image || "/placeholder.svg"}
+                            alt={item.name}
+                            className="h-10 w-10 rounded-md object-cover"
+                          />
+                          <div>
+                            <p className="font-medium">{item.name}</p>
+                            <p className="text-sm text-muted-foreground line-clamp-1">{item.description}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4">{item.category}</td>
+                      <td className="p-4">${item.price.toFixed(2)}</td>
+                      <td className="p-4">
+                        <Badge variant={item.available ? "default" : "destructive"}>
+                          {item.available ? "Disponible" : "No Disponible"}
+                        </Badge>
+                      </td>
+                      <td className="p-4 text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => toggleAvailability(item.id)}>
+                            {item.available ? "Desactivar" : "Activar"}
+                          </Button>
+                          <Button variant="ghost" size="icon">
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon">
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}

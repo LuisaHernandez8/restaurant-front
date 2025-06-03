@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 36 30% 96%;
+    --foreground: 240 10% 3.9%;
+    --card: 36 30% 96%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 36 30% 96%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 43 57% 52%;
+    --primary-foreground: 355 10% 97%;
+    --secondary: 338 60% 30%;
+    --secondary-foreground: 355 10% 97%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 142 19% 28%;
+    --accent-foreground: 355 10% 97%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 355 10% 97%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 43 57% 52%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 240 10% 11%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 11%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 11%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 43 57% 52%;
+    --primary-foreground: 355 10% 97%;
+    --secondary: 338 60% 30%;
+    --secondary-foreground: 355 10% 97%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 142 19% 28%;
+    --accent-foreground: 355 10% 97%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 355 10% 97%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 43 57% 52%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Estilos personalizados para el restaurante */
+.restaurant-gradient {
+  background: linear-gradient(135deg, #f8f5f2 0%, #a49e9e 100%);
+}
+
+.gold-accent {
+  text-shadow: 0 0 1px #d4af37, 0 0 2px #d4af37;
+}
+
+.wine-border {
+  box-shadow: 0 0 0 1px #7b1e3a;
+}
+
+.elegant-card {
+  box-shadow: 0 4px 12px rgba(28, 28, 28, 0.1);
+  transition: all 0.3s ease;
+}
+
+.elegant-card:hover {
+  box-shadow: 0 8px 24px rgba(28, 28, 28, 0.15);
+  transform: translateY(-2px);
+}
