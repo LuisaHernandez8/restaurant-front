@@ -24,6 +24,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { CalendarDays, ClipboardList, Plus, Search, User } from "lucide-react"
 import { toast } from "sonner"
 import { Switch } from "@/components/ui/switch"
+import { createCustomer, Customer, CreateCustomerDTO } from "@/api/customers"
 
 // Datos de ejemplo
 const customers = [
@@ -140,12 +141,8 @@ export default function ClientesPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<(typeof customers)[0] | null>(null)
   const [selectedPreferences, setSelectedPreferences] = useState<string[]>([])
 
-  const handleCustomerSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    toast.success("Cliente guardado con éxito", {
-      description: "Los datos del cliente han sido registrados",
-    })
-    setIsDialogOpen(false)
+  const handleCustomerSubmit = async (e: React.FormEvent) => {
+    
   }
 
   const handlePreferencesSubmit = (e: React.FormEvent) => {
@@ -204,38 +201,17 @@ export default function ClientesPage() {
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
                   <Label htmlFor="name">Nombre Completo</Label>
-                  <Input id="name" placeholder="Nombre y apellidos" required />
+                  <Input id="name" name="name" placeholder="Nombre y apellidos" required />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="email">Email</Label>
-                    <Input id="email" type="email" placeholder="correo@ejemplo.com" required />
+                    <Input id="email" name="email" type="email" placeholder="correo@ejemplo.com" required />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="phone">Teléfono</Label>
-                    <Input id="phone" placeholder="+34 600 000 000" required />
+                    <Input id="phone" name="phone" placeholder="3146754323" required />
                   </div>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="preferences">Preferencias Alimenticias</Label>
-                  <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-                    {dietaryPreferences.map((preference, index) => (
-                      <div key={index} className="flex items-center space-x-2">
-                        <input type="checkbox" id={`preference-${index}`} className="h-4 w-4 rounded border-gray-300" />
-                        <Label htmlFor={`preference-${index}`} className="text-sm font-normal">
-                          {preference}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="notes">Notas Adicionales</Label>
-                  <textarea
-                    id="notes"
-                    className="min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    placeholder="Alergias, preferencias especiales, etc."
-                  />
                 </div>
               </div>
               <DialogFooter>
