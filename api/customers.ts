@@ -18,7 +18,7 @@ export interface UpdateCustomerDTO extends Partial<CreateCustomerDTO> {}
 // Obtener todos los clientes
 export const getAllCustomers = async (): Promise<Customer[]> => {
   try {
-    const response = await api.get('/customers');
+    const response = await api.get<Customer[]>('/customers');
     return response.data;
   } catch (error) {
     console.error('Error al obtener los clientes:', error);
@@ -29,7 +29,7 @@ export const getAllCustomers = async (): Promise<Customer[]> => {
 // Obtener un cliente por ID
 export const getCustomerById = async (id: number): Promise<Customer> => {
   try {
-    const response = await api.get(`/customers/${id}`);
+    const response = await api.get<Customer>(`/customers/${id}`);
     return response.data;
   } catch (error) {
     console.error(`Error al obtener el cliente ${id}:`, error);
@@ -40,7 +40,7 @@ export const getCustomerById = async (id: number): Promise<Customer> => {
 // Crear un nuevo cliente
 export const createCustomer = async (customer: CreateCustomerDTO): Promise<Customer> => {
   try {
-    const response = await api.post('/customers', {
+    const response = await api.post<Customer>('/customers', {
       name: customer.name,
       email: customer.email,
       phone: customer.phone
@@ -55,7 +55,7 @@ export const createCustomer = async (customer: CreateCustomerDTO): Promise<Custo
 // Actualizar un cliente existente
 export const updateCustomer = async (id: number, customer: UpdateCustomerDTO): Promise<Customer> => {
   try {
-    const response = await api.put(`/customers/${id}`, customer);
+    const response = await api.put<Customer>(`/customers/${id}`, customer);
     return response.data;
   } catch (error) {
     console.error(`Error al actualizar el cliente ${id}:`, error);

@@ -25,6 +25,7 @@ import { CalendarDays, ClipboardList, Plus, Search, User } from "lucide-react"
 import { toast } from "sonner"
 import { Switch } from "@/components/ui/switch"
 import { createCustomer, Customer, CreateCustomerDTO } from "@/api/customers"
+import { useForm } from "react-hook-form"
 
 // Datos de ejemplo
 const customers = [
@@ -141,8 +142,28 @@ export default function ClientesPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<(typeof customers)[0] | null>(null)
   const [selectedPreferences, setSelectedPreferences] = useState<string[]>([])
 
-  const handleCustomerSubmit = async (e: React.FormEvent) => {
-    
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<CreateCustomerDTO>()
+
+  const handleCustomerSubmit = async (data: CreateCustomerDTO) => {
+    try {
+      const newCustomer = await createCustomer(data)
+      toast.success("Cliente creado exitosamente")
+      setIsDialogOpen(false)
+      reset()
+      // Aquí podrías actualizar la lista de clientes si es necesario
+    } catch (error) {
+      if (error instanceof Error) {
+        toast.error(`Error al crear el cliente: ${error.message}`)
+      } else {
+        toast.error("Error inesperado al crear el cliente")
+      }
+      console.error("Error en handleCustomerSubmit:", error)
+    }
   }
 
   const handlePreferencesSubmit = (e: React.FormEvent) => {
@@ -197,20 +218,54 @@ export default function ClientesPage() {
               <DialogTitle>Añadir Nuevo Cliente</DialogTitle>
               <DialogDescription>Complete los datos para registrar un nuevo cliente</DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleCustomerSubmit}>
+            <form onSubmit={handleSubmit(handleCustomerSubmit)}>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
                   <Label htmlFor="name">Nombre Completo</Label>
-                  <Input id="name" name="name" placeholder="Nombre y apellidos" required />
+                  <Input 
+                    id="name" 
+                    {...register("name", { required: "El nombre es requerido" })} 
+                    placeholder="Nombre y apellidos" 
+                  />
+                  {errors.name && (
+                    <span className="text-sm text-red-500">{errors.name.message}</span>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="email">Email</Label>
-                    <Input id="email" name="email" type="email" placeholder="correo@ejemplo.com" required />
+                    <Input 
+                      id="email" 
+                      type="email" 
+                      {...register("email", { 
+                        required: "El email es requerido",
+                        pattern: {
+                          value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                          message: "Email inválido"
+                        }
+                      })} 
+                      placeholder="correo@ejemplo.com" 
+                    />
+                    {errors.email && (
+                      <span className="text-sm text-red-500">{errors.email.message}</span>
+                    )}
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="phone">Teléfono</Label>
-                    <Input id="phone" name="phone" placeholder="3146754323" required />
+                    <Input 
+                      id="phone" 
+                      {...register("phone", { 
+                        required: "El teléfono es requerido",
+                        pattern: {
+                          value: /^[0-9]{10}$/,
+                          message: "El teléfono debe tener 10 dígitos"
+                        }
+                      })} 
+                      placeholder="3146754323" 
+                    />
+                    {errors.phone && (
+                      <span className="text-sm text-red-500">{errors.phone.message}</span>
+                    )}
                   </div>
                 </div>
               </div>
