@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Edit, Plus, Search, Trash } from "lucide-react"
 import { toast } from "sonner"
+import { useForm } from "react-hook-form"
 
 // Datos de ejemplo
 const menuItems = [
@@ -81,18 +82,36 @@ const menuItems = [
   },
 ]
 
+interface CreateMenuItemDTO {
+  name: string;
+  category: string;
+  price: number;
+  available: boolean;
+}
+
 export default function MenuPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [availabilityFilter, setAvailabilityFilter] = useState("all")
 
-  const handleMenuItemSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    toast.success("Plato guardado con éxito", {
-      description: "El plato ha sido añadido al menú",
-    })
-    setIsDialogOpen(false)
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<CreateMenuItemDTO>()
+
+  const handleMenuItemSubmit = async (data: CreateMenuItemDTO) => {
+    try {
+      // Aquí irá la llamada a la API
+      console.log(data)
+      toast.success("Plato guardado con éxito")
+      setIsDialogOpen(false)
+      reset()
+    } catch (error) {
+      toast.error("Error al crear el plato")
+    }
   }
 
   const filteredItems = menuItems.filter((item) => {
@@ -130,16 +149,25 @@ export default function MenuPage() {
               <DialogTitle>Añadir Nuevo Plato</DialogTitle>
               <DialogDescription>Complete los detalles para añadir un nuevo plato al menú</DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleMenuItemSubmit}>
+            <form onSubmit={handleSubmit(handleMenuItemSubmit)}>
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="name">Nombre del Plato</Label>
-                    <Input id="name" placeholder="Nombre del plato" required />
+                    <Input 
+                      id="name" 
+                      {...register("name", { required: "El nombre es requerido" })} 
+                      placeholder="Nombre del plato" 
+                    />
+                    {errors.name && (
+                      <span className="text-sm text-red-500">{errors.name.message}</span>
+                    )}
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="category">Categoría</Label>
-                    <Select required>
+                    <Select 
+                      onValueChange={(value) => register("category").onChange({ target: { value } })}
+                    >
                       <SelectTrigger id="category">
                         <SelectValue placeholder="Seleccionar" />
                       </SelectTrigger>
@@ -150,38 +178,41 @@ export default function MenuPage() {
                         <SelectItem value="Bebida">Bebida</SelectItem>
                       </SelectContent>
                     </Select>
+                    {errors.category && (
+                      <span className="text-sm text-red-500">{errors.category.message}</span>
+                    )}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="price">Precio</Label>
-                    <Input id="price" type="number" step="0.01" placeholder="0.00" required />
+                    <Input 
+                      id="price" 
+                      type="number" 
+                      step="0.01" 
+                      {...register("price", { 
+                        required: "El precio es requerido",
+                        min: { value: 0, message: "El precio debe ser mayor a 0" }
+                      })} 
+                      placeholder="0.00" 
+                    />
+                    {errors.price && (
+                      <span className="text-sm text-red-500">{errors.price.message}</span>
+                    )}
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="available" className="mb-2">
                       Disponibilidad
                     </Label>
                     <div className="flex items-center space-x-2">
-                      <Switch id="available" defaultChecked />
+                      <Switch 
+                        id="available" 
+                        {...register("available")}
+                        defaultChecked 
+                      />
                       <Label htmlFor="available">Disponible</Label>
                     </div>
                   </div>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="description">Descripción</Label>
-                  <Input id="description" placeholder="Descripción del plato" required />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="image">Imagen</Label>
-                  <Input id="image" type="file" />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="ingredients">Ingredientes</Label>
-                  <Input id="ingredients" placeholder="Ingredientes principales" />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="allergens">Alérgenos</Label>
-                  <Input id="allergens" placeholder="Gluten, lácteos, etc." />
                 </div>
               </div>
               <DialogFooter>

@@ -18,8 +18,8 @@ export interface UpdateCustomerDTO extends Partial<CreateCustomerDTO> {}
 // Obtener todos los clientes
 export const getAllCustomers = async (): Promise<Customer[]> => {
   try {
-    const response = await api.get<Customer[]>('/customers');
-    return response.data;
+    const response = await api.get<{ data: Customer[] }>('/customers');
+    return response.data.data;
   } catch (error) {
     console.error('Error al obtener los clientes:', error);
     throw error;
