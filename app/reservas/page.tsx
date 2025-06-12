@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -19,82 +18,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Table as UITable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, Filter, Plus, Search, User, Users } from "lucide-react"
 import { toast } from "sonner"
 import { format, addDays, subDays } from "date-fns"
 import { es } from "date-fns/locale"
-
-// Datos de ejemplo
-const reservations = [
-  {
-    id: "RES-001",
-    name: "Carlos Rodríguez",
-    email: "carlos@ejemplo.com",
-    phone: "+34 612 345 678",
-    date: "2025-05-20",
-    time: "19:30",
-    guests: 4,
-    status: "confirmada",
-    notes: "Prefiere mesa junto a la ventana",
-  },
-  {
-    id: "RES-002",
-    name: "María López",
-    email: "maria@ejemplo.com",
-    phone: "+34 623 456 789",
-    date: "2025-05-20",
-    time: "20:00",
-    guests: 2,
-    status: "pendiente",
-    notes: "Celebración de aniversario",
-  },
-  {
-    id: "RES-003",
-    name: "Juan Pérez",
-    email: "juan@ejemplo.com",
-    phone: "+34 634 567 890",
-    date: "2025-05-20",
-    time: "21:15",
-    guests: 6,
-    status: "confirmada",
-    notes: "Grupo de negocios",
-  },
-  {
-    id: "RES-004",
-    name: "Ana Martínez",
-    email: "ana@ejemplo.com",
-    phone: "+34 645 678 901",
-    date: "2025-05-21",
-    time: "18:45",
-    guests: 3,
-    status: "pendiente",
-    notes: "Solicita trona para bebé",
-  },
-  {
-    id: "RES-005",
-    name: "Roberto Gómez",
-    email: "roberto@ejemplo.com",
-    phone: "+34 656 789 012",
-    date: "2025-05-21",
-    time: "20:30",
-    guests: 5,
-    status: "confirmada",
-    notes: "Alergia a frutos secos",
-  },
-  {
-    id: "RES-006",
-    name: "Elena Torres",
-    email: "elena@ejemplo.com",
-    phone: "+34 667 890 123",
-    date: "2025-05-22",
-    time: "19:00",
-    guests: 2,
-    status: "confirmada",
-    notes: "Prefiere terraza",
-  },
-]
+import { getAllCustomers, type Customer } from "@/api/customers"
+import { getTables, type Table } from "@/api/tables"
+import { createReservation, getAllReservations, type Reservation } from "@/api/reservations"
 
 export default function ReservasPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -104,14 +36,89 @@ export default function ReservasPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [guestsFilter, setGuestsFilter] = useState("all")
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false)
-  const [selectedReservation, setSelectedReservation] = useState<any>(null)
+  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null)
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [tables, setTables] = useState<Table[]>([])
+  const [reservations, setReservations] = useState<Reservation[]>([])
+  const [formData, setFormData] = useState({
+    customer_id: "",
+    table_id: "",
+    reservation_date: format(new Date(), "yyyy-MM-dd"),
+    reservation_time: "20:00"
+  })
 
-  const handleReservationSubmit = (e: React.FormEvent) => {
+  const fetchReservations = async () => {
+    try {
+      const response = await getAllReservations()
+      setReservations(response)
+    } catch (error) {
+      console.error("Error al cargar las reservas:", error)
+      toast.error("Error al cargar las reservas")
+    }
+  }
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [customersData, tablesData] = await Promise.all([
+          getAllCustomers(),
+          getTables()
+        ])
+        setCustomers(customersData)
+        setTables(tablesData)
+        await fetchReservations()
+      } catch (error) {
+        console.error("Error al cargar los datos:", error)
+        toast.error("Error al cargar los datos")
+      }
+    }
+    fetchData()
+  }, [])
+
+  const handleReservationSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    toast.success("Reserva creada con éxito", {
-      description: "La reserva ha sido registrada en el sistema",
-    })
-    setIsDialogOpen(false)
+    
+    // Validar que todos los campos estén llenos
+    if (!formData.customer_id || !formData.table_id || !formData.reservation_date || !formData.reservation_time) {
+      toast.error("Por favor complete todos los campos")
+      return
+    }
+
+    try {
+      // Formatear la fecha y hora
+      const [hours, minutes] = formData.reservation_time.split(':')
+      const reservationDate = new Date(formData.reservation_date)
+      reservationDate.setHours(parseInt(hours), parseInt(minutes))
+
+      await createReservation({
+        customer_id: parseInt(formData.customer_id),
+        table_id: parseInt(formData.table_id),
+        reservation_date: reservationDate.toISOString(),
+        reservation_time: formData.reservation_time
+      })
+      
+      toast.success("Reserva creada con éxito")
+      setIsDialogOpen(false)
+      setFormData({
+        customer_id: "",
+        table_id: "",
+        reservation_date: format(new Date(), "yyyy-MM-dd"),
+        reservation_time: "20:00"
+      })
+      // Actualizar la lista de reservas inmediatamente
+      await fetchReservations()
+    } catch (error: any) {
+      console.error("Error al crear la reserva:", error)
+      // Mostrar el mensaje de error en un toast con estilo de error
+      toast.error(error.message || "Error al crear la reserva", {
+        duration: 5000,
+        style: {
+          background: '#FEE2E2',
+          color: '#991B1B',
+          border: '1px solid #FCA5A5'
+        }
+      })
+    }
   }
 
   const handleDateChange = (direction: "prev" | "next") => {
@@ -122,7 +129,7 @@ export default function ReservasPage() {
     }
   }
 
-  const openDetailDialog = (reservation: any) => {
+  const openDetailDialog = (reservation: Reservation) => {
     setSelectedReservation(reservation)
     setIsDetailDialogOpen(true)
   }
@@ -133,29 +140,35 @@ export default function ReservasPage() {
   }
 
   const filteredReservations = reservations.filter((reservation) => {
-    const matchesSearch =
-      reservation.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reservation.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reservation.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reservation.phone.toLowerCase().includes(searchTerm.toLowerCase())
+    const customer = customers.find(c => c.id === reservation.customer_id)
+    const matchesSearch = customer && (
+      customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer.phone.toLowerCase().includes(searchTerm.toLowerCase())
+    )
 
     const matchesStatus = statusFilter === "all" || reservation.status === statusFilter
 
+    const table = tables.find(t => t.id === reservation.table_id)
     const matchesGuests =
       guestsFilter === "all" ||
-      (guestsFilter === "1-2" && reservation.guests <= 2) ||
-      (guestsFilter === "3-4" && reservation.guests >= 3 && reservation.guests <= 4) ||
-      (guestsFilter === "5+" && reservation.guests >= 5)
+      (guestsFilter === "1-2" && table && table.capacity <= 2) ||
+      (guestsFilter === "3-4" && table && table.capacity >= 3 && table.capacity <= 4) ||
+      (guestsFilter === "5+" && table && table.capacity >= 5)
 
+    // Convertir la fecha de la reserva a formato YYYY-MM-DD para comparar
+    const reservationDate = new Date(reservation.reservation_date)
+    const formattedReservationDate = format(reservationDate, "yyyy-MM-dd")
     const formattedSelectedDate = format(selectedDate, "yyyy-MM-dd")
-    const matchesDate = reservation.date === formattedSelectedDate
+    
+    const matchesDate = formattedReservationDate === formattedSelectedDate
 
     return matchesSearch && matchesStatus && matchesGuests && matchesDate
   })
 
   // Agrupar reservas por hora
-  const reservationsByTime = filteredReservations.reduce((acc: any, reservation) => {
-    const hour = reservation.time.split(":")[0]
+  const reservationsByTime = filteredReservations.reduce((acc: Record<string, Reservation[]>, reservation: Reservation) => {
+    const hour = reservation.reservation_time.split(":")[0]
     if (!acc[hour]) {
       acc[hour] = []
     }
@@ -245,78 +258,74 @@ export default function ReservasPage() {
               <form onSubmit={handleReservationSubmit}>
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="name" className="text-restaurant-black">
-                      Nombre del Cliente
+                    <Label htmlFor="customer" className="text-restaurant-black">
+                      Cliente
                     </Label>
-                    <Input
-                      id="name"
-                      placeholder="Nombre completo"
+                    <Select
+                      value={formData.customer_id}
+                      onValueChange={(value) => setFormData({ ...formData, customer_id: value })}
                       required
-                      className="border-restaurant-stone/20 bg-white"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="phone" className="text-restaurant-black">
-                      Teléfono
-                    </Label>
-                    <Input
-                      id="phone"
-                      placeholder="Número de teléfono"
-                      required
-                      className="border-restaurant-stone/20 bg-white"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="email" className="text-restaurant-black">
-                      Email
-                    </Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="correo@ejemplo.com"
-                      className="border-restaurant-stone/20 bg-white"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="date" className="text-restaurant-black">
-                        Fecha
-                      </Label>
-                      <Input id="date" type="date" required className="border-restaurant-stone/20 bg-white" />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="time" className="text-restaurant-black">
-                        Hora
-                      </Label>
-                      <Input id="time" type="time" required className="border-restaurant-stone/20 bg-white" />
-                    </div>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="guests" className="text-restaurant-black">
-                      Número de Personas
-                    </Label>
-                    <Select required>
-                      <SelectTrigger id="guests" className="border-restaurant-stone/20 bg-white">
-                        <SelectValue placeholder="Seleccionar" />
+                    >
+                      <SelectTrigger id="customer" className="border-restaurant-stone/20 bg-white">
+                        <SelectValue placeholder="Seleccionar cliente" />
                       </SelectTrigger>
                       <SelectContent className="border-restaurant-stone/10 bg-white">
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                          <SelectItem key={num} value={num.toString()}>
-                            {num} {num === 1 ? "persona" : "personas"}
+                        {customers.map((customer) => (
+                          <SelectItem key={customer.id} value={customer.id.toString()}>
+                            {customer.name} - {customer.phone}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="notes" className="text-restaurant-black">
-                      Notas Adicionales
+                    <Label htmlFor="table" className="text-restaurant-black">
+                      Mesa
                     </Label>
-                    <Input
-                      id="notes"
-                      placeholder="Alergias, preferencias, etc."
-                      className="border-restaurant-stone/20 bg-white"
-                    />
+                    <Select
+                      value={formData.table_id}
+                      onValueChange={(value) => setFormData({ ...formData, table_id: value })}
+                      required
+                    >
+                      <SelectTrigger id="table" className="border-restaurant-stone/20 bg-white">
+                        <SelectValue placeholder="Seleccionar mesa" />
+                      </SelectTrigger>
+                      <SelectContent className="border-restaurant-stone/10 bg-white">
+                        {tables.map((table) => (
+                          <SelectItem key={table.id} value={table.id.toString()}>
+                            Mesa {table.id} - {table.capacity} personas ({table.location})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="date" className="text-restaurant-black">
+                        Fecha
+                      </Label>
+                      <Input
+                        id="date"
+                        type="date"
+                        value={formData.reservation_date}
+                        onChange={(e) => setFormData({ ...formData, reservation_date: e.target.value })}
+                        required
+                        className="border-restaurant-stone/20 bg-white"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="time" className="text-restaurant-black">
+                        Hora
+                      </Label>
+                      <Input
+                        id="time"
+                        type="time"
+                        value={formData.reservation_time}
+                        onChange={(e) => setFormData({ ...formData, reservation_time: e.target.value })}
+                        required
+                        className="border-restaurant-stone/20 bg-white"
+                      />
+                    </div>
                   </div>
                 </div>
                 <DialogFooter>
@@ -422,7 +431,7 @@ export default function ReservasPage() {
                 No se encontraron reservas para el {format(selectedDate, "d 'de' MMMM", { locale: es })} con los filtros
                 seleccionados.
               </p>
-              <Button className="mt-4">
+              <Button className="mt-4" onClick={() => setIsDialogOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Crear Nueva Reserva
               </Button>
@@ -457,52 +466,49 @@ export default function ReservasPage() {
                     </CardHeader>
                     <CardContent className="p-4">
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {reservationsByTime[hour].map((reservation: any) => (
-                          <Card
-                            key={reservation.id}
-                            className="elegant-card overflow-hidden border-l-4 border-restaurant-stone/10 bg-white"
-                            style={{ borderLeftColor: reservation.status === "confirmada" ? "#D4AF37" : "#A49E9E" }}
-                          >
-                            <CardContent className="p-4">
-                              <div className="flex justify-between items-start">
-                                <div>
-                                  <h3 className="font-medium text-restaurant-black">{reservation.name}</h3>
-                                  <div className="flex items-center gap-1 text-sm text-restaurant-stone">
-                                    <Clock className="h-3 w-3 text-restaurant-gold" />
-                                    {reservation.time}
+                        {reservationsByTime[hour].map((reservation) => {
+                          const customer = customers.find(c => c.id === reservation.customer_id)
+                          const table = tables.find(t => t.id === reservation.table_id)
+                          return (
+                            <Card
+                              key={reservation.id}
+                              className="elegant-card overflow-hidden border-l-4 border-restaurant-stone/10 bg-white"
+                              style={{ borderLeftColor: "#D4AF37" }}
+                            >
+                              <CardContent className="p-4">
+                                <div className="flex justify-between items-start">
+                                  <div>
+                                    <h3 className="font-medium text-restaurant-black">{customer?.name}</h3>
+                                    <div className="flex items-center gap-1 text-sm text-restaurant-stone">
+                                      <Clock className="h-3 w-3 text-restaurant-gold" />
+                                      {reservation.reservation_time}
+                                    </div>
                                   </div>
+                                  <Badge
+                                    variant="default"
+                                    className="bg-restaurant-olive text-restaurant-ivory"
+                                  >
+                                    Confirmada
+                                  </Badge>
                                 </div>
-                                <Badge
-                                  variant={reservation.status === "confirmada" ? "default" : "outline"}
-                                  className={
-                                    reservation.status === "confirmada"
-                                      ? "bg-restaurant-olive text-restaurant-ivory"
-                                      : "border-restaurant-stone text-restaurant-stone"
-                                  }
+                                <div className="mt-2 flex items-center gap-1 text-sm">
+                                  <Users className="h-3 w-3 text-restaurant-gold" />
+                                  <span className="text-restaurant-black">
+                                    Mesa {table?.id} - {table?.capacity} personas ({table?.location})
+                                  </span>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="mt-2 w-full text-restaurant-wine hover:text-restaurant-wine hover:bg-restaurant-wine/10"
+                                  onClick={() => openDetailDialog(reservation)}
                                 >
-                                  {reservation.status}
-                                </Badge>
-                              </div>
-                              <div className="mt-2 flex items-center gap-1 text-sm">
-                                <Users className="h-3 w-3 text-restaurant-gold" />
-                                <span className="text-restaurant-black">
-                                  {reservation.guests} {reservation.guests === 1 ? "persona" : "personas"}
-                                </span>
-                              </div>
-                              {reservation.notes && (
-                                <p className="mt-2 text-sm text-restaurant-stone line-clamp-1">{reservation.notes}</p>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="mt-2 w-full text-restaurant-wine hover:text-restaurant-wine hover:bg-restaurant-wine/10"
-                                onClick={() => openDetailDialog(reservation)}
-                              >
-                                Ver Detalles
-                              </Button>
-                            </CardContent>
-                          </Card>
-                        ))}
+                                  Ver Detalles
+                                </Button>
+                              </CardContent>
+                            </Card>
+                          )
+                        })}
                       </div>
                     </CardContent>
                   </Card>
@@ -512,75 +518,71 @@ export default function ReservasPage() {
               <TabsContent value="list">
                 <Card className="elegant-card border-restaurant-stone/10 bg-white">
                   <CardContent className="p-0">
-                    <Table>
+                    <UITable>
                       <TableHeader className="bg-restaurant-ivory">
                         <TableRow>
                           <TableHead>Cliente</TableHead>
+                          <TableHead>Mesa</TableHead>
                           <TableHead>Hora</TableHead>
-                          <TableHead>Personas</TableHead>
                           <TableHead>Estado</TableHead>
-                          <TableHead>Notas</TableHead>
                           <TableHead className="text-right">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredReservations.map((reservation) => (
-                          <TableRow key={reservation.id} className="hover:bg-restaurant-ivory/50">
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <Avatar className="h-8 w-8 border border-restaurant-gold/20">
-                                  <AvatarImage src={`/placeholder.svg?height=32&width=32`} alt={reservation.name} />
-                                  <AvatarFallback className="bg-restaurant-olive text-restaurant-ivory">
-                                    {reservation.name.substring(0, 2).toUpperCase()}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div>
-                                  <div className="font-medium text-restaurant-black">{reservation.name}</div>
-                                  <div className="text-xs text-restaurant-stone">{reservation.phone}</div>
+                        {filteredReservations.map((reservation) => {
+                          const customer = customers.find(c => c.id === reservation.customer_id)
+                          const table = tables.find(t => t.id === reservation.table_id)
+                          return (
+                            <TableRow key={reservation.id} className="hover:bg-restaurant-ivory/50">
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Avatar className="h-8 w-8 border border-restaurant-gold/20">
+                                    <AvatarImage src={`/placeholder.svg?height=32&width=32`} alt={customer?.name} />
+                                    <AvatarFallback className="bg-restaurant-olive text-restaurant-ivory">
+                                      {customer?.name?.substring(0, 2).toUpperCase()}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div>
+                                    <div className="font-medium text-restaurant-black">{customer?.name}</div>
+                                    <div className="text-xs text-restaurant-stone">{customer?.phone}</div>
+                                  </div>
                                 </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-1">
-                                <Clock className="h-4 w-4 text-restaurant-gold" />
-                                {reservation.time}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-1">
-                                <Users className="h-4 w-4 text-restaurant-gold" />
-                                {reservation.guests}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={reservation.status === "confirmada" ? "default" : "outline"}
-                                className={
-                                  reservation.status === "confirmada"
-                                    ? "bg-restaurant-olive text-restaurant-ivory"
-                                    : "border-restaurant-stone text-restaurant-stone"
-                                }
-                              >
-                                {reservation.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="max-w-[200px]">
-                              <p className="truncate text-sm text-restaurant-stone">{reservation.notes || "-"}</p>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-restaurant-wine hover:text-restaurant-wine hover:bg-restaurant-wine/10"
-                                onClick={() => openDetailDialog(reservation)}
-                              >
-                                Detalles
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1">
+                                  <Users className="h-4 w-4 text-restaurant-gold" />
+                                  Mesa {table?.id} ({table?.location})
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1">
+                                  <Clock className="h-4 w-4 text-restaurant-gold" />
+                                  {reservation.reservation_time}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge
+                                  variant="default"
+                                  className="bg-restaurant-olive text-restaurant-ivory"
+                                >
+                                  Confirmada
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-restaurant-wine hover:text-restaurant-wine hover:bg-restaurant-wine/10"
+                                  onClick={() => openDetailDialog(reservation)}
+                                >
+                                  Detalles
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
                       </TableBody>
-                    </Table>
+                    </UITable>
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -595,80 +597,77 @@ export default function ReservasPage() {
           <DialogHeader>
             <DialogTitle className="text-restaurant-black">Detalles de Reserva</DialogTitle>
             <DialogDescription className="text-restaurant-stone">
-              Reserva #{selectedReservation?.id} - {selectedReservation && formatDate(selectedReservation.date)}
+              Reserva #{selectedReservation?.id} - {selectedReservation && formatDate(selectedReservation.reservation_date)}
             </DialogDescription>
           </DialogHeader>
           {selectedReservation && (
             <div className="grid gap-4 py-4">
-              <div className="flex items-center gap-4">
-                <Avatar className="h-12 w-12 border border-restaurant-gold/20">
-                  <AvatarImage src={`/placeholder.svg?height=48&width=48`} alt={selectedReservation.name} />
-                  <AvatarFallback className="bg-restaurant-olive text-restaurant-ivory">
-                    {selectedReservation.name.substring(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <h3 className="font-medium text-restaurant-black">{selectedReservation.name}</h3>
-                  <div className="text-sm text-restaurant-stone">{selectedReservation.email}</div>
-                </div>
-              </div>
+              {(() => {
+                const customer = customers.find(c => c.id === selectedReservation.customer_id)
+                const table = tables.find(t => t.id === selectedReservation.table_id)
+                return (
+                  <>
+                    <div className="flex items-center gap-4">
+                      <Avatar className="h-12 w-12 border border-restaurant-gold/20">
+                        <AvatarImage src={`/placeholder.svg?height=48&width=48`} alt={customer?.name} />
+                        <AvatarFallback className="bg-restaurant-olive text-restaurant-ivory">
+                          {customer?.name?.substring(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <h3 className="font-medium text-restaurant-black">{customer?.name}</h3>
+                        <div className="text-sm text-restaurant-stone">{customer?.email}</div>
+                      </div>
+                    </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label className="text-xs text-restaurant-stone">Teléfono</Label>
-                  <div className="flex items-center gap-1 text-restaurant-black">
-                    <User className="h-4 w-4 text-restaurant-gold" />
-                    {selectedReservation.phone}
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-restaurant-stone">Estado</Label>
-                  <div>
-                    <Badge
-                      variant={selectedReservation.status === "confirmada" ? "default" : "outline"}
-                      className={
-                        selectedReservation.status === "confirmada"
-                          ? "bg-restaurant-olive text-restaurant-ivory"
-                          : "border-restaurant-stone text-restaurant-stone"
-                      }
-                    >
-                      {selectedReservation.status}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-restaurant-stone">Teléfono</Label>
+                        <div className="flex items-center gap-1 text-restaurant-black">
+                          <User className="h-4 w-4 text-restaurant-gold" />
+                          {customer?.phone}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-restaurant-stone">Estado</Label>
+                        <div>
+                          <Badge
+                            variant="default"
+                            className="bg-restaurant-olive text-restaurant-ivory"
+                          >
+                            Confirmada
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label className="text-xs text-restaurant-stone">Fecha</Label>
-                  <div className="flex items-center gap-1 text-restaurant-black">
-                    <CalendarDays className="h-4 w-4 text-restaurant-gold" />
-                    {formatDate(selectedReservation.date)}
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-restaurant-stone">Hora</Label>
-                  <div className="flex items-center gap-1 text-restaurant-black">
-                    <Clock className="h-4 w-4 text-restaurant-gold" />
-                    {selectedReservation.time}
-                  </div>
-                </div>
-              </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-restaurant-stone">Fecha</Label>
+                        <div className="flex items-center gap-1 text-restaurant-black">
+                          <CalendarDays className="h-4 w-4 text-restaurant-gold" />
+                          {formatDate(selectedReservation.reservation_date)}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-restaurant-stone">Hora</Label>
+                        <div className="flex items-center gap-1 text-restaurant-black">
+                          <Clock className="h-4 w-4 text-restaurant-gold" />
+                          {selectedReservation.reservation_time}
+                        </div>
+                      </div>
+                    </div>
 
-              <div className="space-y-1">
-                <Label className="text-xs text-restaurant-stone">Número de Personas</Label>
-                <div className="flex items-center gap-1 text-restaurant-black">
-                  <Users className="h-4 w-4 text-restaurant-gold" />
-                  {selectedReservation.guests} {selectedReservation.guests === 1 ? "persona" : "personas"}
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs text-restaurant-stone">Notas</Label>
-                <div className="rounded-md bg-restaurant-ivory p-3 text-sm text-restaurant-black">
-                  {selectedReservation.notes || "Sin notas adicionales"}
-                </div>
-              </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-restaurant-stone">Mesa</Label>
+                      <div className="flex items-center gap-1 text-restaurant-black">
+                        <Users className="h-4 w-4 text-restaurant-gold" />
+                        Mesa {table?.id} - {table?.capacity} personas ({table?.location})
+                      </div>
+                    </div>
+                  </>
+                )
+              })()}
             </div>
           )}
           <DialogFooter className="flex gap-2 sm:justify-between">

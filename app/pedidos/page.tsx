@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -22,75 +21,63 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { CalendarDays, Clock, Plus, Search, Trash, User } from "lucide-react"
 import { toast } from "sonner"
-
-// Datos de ejemplo
-const orders = [
-  {
-    id: "ORD-001",
-    customer: "Carlos Rodríguez",
-    table: "5",
-    date: "20 Mayo, 2025",
-    time: "19:45",
-    items: [
-      { name: "Paella Valenciana", quantity: 2, price: 18.99 },
-      { name: "Ensalada César", quantity: 1, price: 9.5 },
-      { name: "Tiramisú", quantity: 2, price: 8.25 },
-    ],
-    status: "completado",
-    total: 63.98,
-  },
-  {
-    id: "ORD-002",
-    customer: "María López",
-    table: "3",
-    date: "20 Mayo, 2025",
-    time: "20:15",
-    items: [
-      { name: "Ceviche de Camarones", quantity: 1, price: 12.5 },
-      { name: "Lomo Saltado", quantity: 1, price: 16.75 },
-    ],
-    status: "en proceso",
-    total: 29.25,
-  },
-  {
-    id: "ORD-003",
-    customer: "Juan Pérez",
-    table: "8",
-    date: "20 Mayo, 2025",
-    time: "20:30",
-    items: [
-      { name: "Sopa de Mariscos", quantity: 2, price: 14.99 },
-      { name: "Paella Valenciana", quantity: 1, price: 18.99 },
-      { name: "Tiramisú", quantity: 1, price: 8.25 },
-    ],
-    status: "pendiente",
-    total: 57.22,
-  },
-]
-
-// Datos de ejemplo para el menú
-const menuItems = [
-  { id: 1, name: "Paella Valenciana", category: "Plato Principal", price: 18.99 },
-  { id: 2, name: "Ceviche de Camarones", category: "Entrada", price: 12.5 },
-  { id: 3, name: "Lomo Saltado", category: "Plato Principal", price: 16.75 },
-  { id: 4, name: "Tiramisú", category: "Postre", price: 8.25 },
-  { id: 5, name: "Ensalada César", category: "Entrada", price: 9.5 },
-  { id: 6, name: "Sopa de Mariscos", category: "Entrada", price: 14.99 },
-]
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
+import { getAllCustomers, type Customer } from "@/api/customers"
+import { getOrders, createOrder, type Order, type CreateOrderDTO } from "@/api/orders"
+import { getDishes, type Dish } from "@/api/dishes"
 
 export default function PedidosPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
   const [orderItems, setOrderItems] = useState<{ id: number; name: string; quantity: number; price: number }[]>([])
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
+  const [selectedCustomer, setSelectedCustomer] = useState("")
+  const [dishes, setDishes] = useState<Dish[]>([])
+  const [categoryFilter, setCategoryFilter] = useState("all")
+  const [dishSearchTerm, setDishSearchTerm] = useState("")
 
-  const handleAddItem = (id: number, name: string, price: number) => {
+  const fetchOrders = async () => {
+    try {
+      const response = await getOrders()
+      setOrders(response)
+    } catch (error) {
+      console.error("Error al cargar los pedidos:", error)
+      toast.error("Error al cargar los pedidos")
+    }
+  }
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [customersData, dishesData] = await Promise.all([
+          getAllCustomers(),
+          getDishes()
+        ])
+        setCustomers(customersData)
+        setDishes(dishesData)
+        await fetchOrders()
+      } catch (error) {
+        console.error("Error al cargar los datos:", error)
+        toast.error("Error al cargar los datos")
+      }
+    }
+    fetchData()
+  }, [])
+
+  const handleAddItem = (id: number, name: string, price: string | number) => {
     const existingItem = orderItems.find((item) => item.id === id)
+    const numericPrice = typeof price === 'string' ? parseFloat(price) : price
 
     if (existingItem) {
-      setOrderItems(orderItems.map((item) => (item.id === id ? { ...item, quantity: item.quantity + 1 } : item)))
+      setOrderItems(orderItems.map((item) => 
+        item.id === id 
+          ? { ...item, quantity: item.quantity + 1 } 
+          : item
+      ))
     } else {
-      setOrderItems([...orderItems, { id, name, quantity: 1, price }])
+      setOrderItems([...orderItems, { id, name, quantity: 1, price: numericPrice }])
     }
   }
 
@@ -108,26 +95,76 @@ export default function PedidosPage() {
   }
 
   const calculateTotal = () => {
-    return orderItems.reduce((total, item) => total + item.price * item.quantity, 0)
+    return orderItems.reduce((total, item) => {
+      const itemPrice = typeof item.price === 'string' ? parseFloat(item.price) : item.price
+      return total + (itemPrice * item.quantity)
+    }, 0)
   }
 
-  const handleOrderSubmit = (e: React.FormEvent) => {
+  const handleOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    toast.success("Pedido creado con éxito", {
-      description: "El pedido ha sido registrado en el sistema",
-    })
-    setOrderItems([])
-    setIsDialogOpen(false)
+    
+    if (!selectedCustomer) {
+      toast.error("Por favor seleccione un cliente")
+      return
+    }
+
+    if (orderItems.length === 0) {
+      toast.error("Por favor agregue al menos un plato al pedido")
+      return
+    }
+
+    try {
+      const orderData: CreateOrderDTO = {
+        customer_id: parseInt(selectedCustomer),
+        dishes: orderItems.map(item => ({
+          dish_id: item.id,
+          quantity: item.quantity
+        }))
+      }
+
+      await createOrder(orderData)
+      toast.success("Pedido creado con éxito")
+      setOrderItems([])
+      setSelectedCustomer("")
+      setIsDialogOpen(false)
+      // Actualizar la lista de pedidos
+      await fetchOrders()
+    } catch (error: any) {
+      console.error("Error al crear el pedido:", error)
+      toast.error(error.message || "Error al crear el pedido")
+    }
   }
 
   const filteredOrders = orders.filter((order) => {
-    const matchesSearch =
-      order.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.id.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === "all" || order.status === statusFilter
-
-    return matchesSearch && matchesStatus
+    return order.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.id.toString().includes(searchTerm)
   })
+
+  const filteredDishes = dishes.filter((dish) => {
+    const matchesSearch = dish.name.toLowerCase().includes(dishSearchTerm.toLowerCase())
+    const matchesCategory = categoryFilter === "all" || dish.category === categoryFilter
+    return matchesSearch && matchesCategory && dish.available
+  })
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return format(date, "d 'de' MMMM, yyyy", { locale: es })
+  }
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString)
+    return format(date, "HH:mm", { locale: es })
+  }
+
+  const formatPrice = (price: string | number) => {
+    const numericPrice = typeof price === 'string' ? parseFloat(price) : price
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0
+    }).format(numericPrice)
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -147,32 +184,26 @@ export default function PedidosPage() {
             </DialogHeader>
             <form onSubmit={handleOrderSubmit}>
               <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="customer">Cliente</Label>
-                    <Input id="customer" placeholder="Nombre del cliente" required />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="table">Mesa</Label>
-                    <Select required>
-                      <SelectTrigger id="table">
-                        <SelectValue placeholder="Seleccionar" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                          <SelectItem key={num} value={num.toString()}>
-                            Mesa {num}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="customer">Cliente</Label>
+                  <Select value={selectedCustomer} onValueChange={setSelectedCustomer} required>
+                    <SelectTrigger id="customer">
+                      <SelectValue placeholder="Seleccionar cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {customers.map((customer) => (
+                        <SelectItem key={customer.id} value={customer.id.toString()}>
+                          {customer.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="border rounded-md p-4">
                   <h3 className="font-medium mb-2">Platos</h3>
                   <div className="grid grid-cols-2 gap-4 mb-4">
-                    <Select>
+                    <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                       <SelectTrigger>
                         <SelectValue placeholder="Filtrar por categoría" />
                       </SelectTrigger>
@@ -186,22 +217,28 @@ export default function PedidosPage() {
                     </Select>
                     <div className="relative">
                       <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input type="search" placeholder="Buscar platos..." className="pl-8" />
+                      <Input 
+                        type="search" 
+                        placeholder="Buscar platos..." 
+                        className="pl-8"
+                        value={dishSearchTerm}
+                        onChange={(e) => setDishSearchTerm(e.target.value)}
+                      />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto mb-4">
-                    {menuItems.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between p-2 border rounded-md">
+                    {filteredDishes.map((dish) => (
+                      <div key={dish.id} className="flex items-center justify-between p-2 border rounded-md">
                         <div>
-                          <p className="font-medium">{item.name}</p>
-                          <p className="text-sm text-muted-foreground">${item.price.toFixed(2)}</p>
+                          <p className="font-medium">{dish.name}</p>
+                          <p className="text-sm text-muted-foreground">{formatPrice(dish.price)}</p>
                         </div>
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => handleAddItem(item.id, item.name, item.price)}
+                          onClick={() => handleAddItem(dish.id, dish.name, dish.price)}
                         >
                           Añadir
                         </Button>
@@ -218,7 +255,7 @@ export default function PedidosPage() {
                         <div key={item.id} className="flex items-center justify-between p-2 border rounded-md">
                           <div className="flex-1">
                             <p className="font-medium">{item.name}</p>
-                            <p className="text-sm text-muted-foreground">${item.price.toFixed(2)}</p>
+                            <p className="text-sm text-muted-foreground">{formatPrice(item.price)}</p>
                           </div>
                           <div className="flex items-center gap-2">
                             <Button
@@ -247,19 +284,14 @@ export default function PedidosPage() {
 
                       <div className="flex justify-between pt-4 border-t mt-4">
                         <span className="font-medium">Total:</span>
-                        <span className="font-bold">${calculateTotal().toFixed(2)}</span>
+                        <span className="font-bold">{formatPrice(calculateTotal())}</span>
                       </div>
                     </div>
                   )}
                 </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="notes">Notas Adicionales</Label>
-                  <Input id="notes" placeholder="Instrucciones especiales, alergias, etc." />
-                </div>
               </div>
               <DialogFooter>
-                <Button type="submit" disabled={orderItems.length === 0}>
+                <Button type="submit" disabled={orderItems.length === 0 || !selectedCustomer}>
                   Crear Pedido
                 </Button>
               </DialogFooter>
@@ -283,215 +315,67 @@ export default function PedidosPage() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-[150px]">
-                  <SelectValue placeholder="Estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="pendiente">Pendientes</SelectItem>
-                  <SelectItem value="en proceso">En Proceso</SelectItem>
-                  <SelectItem value="completado">Completados</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           </div>
         </CardHeader>
       </Card>
 
-      <Tabs defaultValue="active" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="active">Pedidos Activos</TabsTrigger>
-          <TabsTrigger value="completed">Pedidos Completados</TabsTrigger>
-          <TabsTrigger value="all">Todos los Pedidos</TabsTrigger>
-        </TabsList>
-        <TabsContent value="active" className="space-y-4">
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Mesa</TableHead>
-                    <TableHead>Fecha/Hora</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Total</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredOrders
-                    .filter((order) => order.status !== "completado")
-                    .map((order) => (
-                      <TableRow key={order.id}>
-                        <TableCell className="font-medium">{order.id}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            {order.customer}
-                          </div>
-                        </TableCell>
-                        <TableCell>Mesa {order.table}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <div className="flex items-center gap-1">
-                              <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                              {order.date}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Clock className="h-4 w-4 text-muted-foreground" />
-                              {order.time}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              order.status === "completado"
-                                ? "default"
-                                : order.status === "en proceso"
-                                  ? "secondary"
-                                  : "outline"
-                            }
-                          >
-                            {order.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>${order.total.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">
-                          <Button variant="ghost" size="sm">
-                            Detalles
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="completed" className="space-y-4">
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Mesa</TableHead>
-                    <TableHead>Fecha/Hora</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Total</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredOrders
-                    .filter((order) => order.status === "completado")
-                    .map((order) => (
-                      <TableRow key={order.id}>
-                        <TableCell className="font-medium">{order.id}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            {order.customer}
-                          </div>
-                        </TableCell>
-                        <TableCell>Mesa {order.table}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <div className="flex items-center gap-1">
-                              <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                              {order.date}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Clock className="h-4 w-4 text-muted-foreground" />
-                              {order.time}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="default">{order.status}</Badge>
-                        </TableCell>
-                        <TableCell>${order.total.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">
-                          <Button variant="ghost" size="sm">
-                            Detalles
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="all" className="space-y-4">
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Mesa</TableHead>
-                    <TableHead>Fecha/Hora</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Total</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredOrders.map((order) => (
-                    <TableRow key={order.id}>
-                      <TableCell className="font-medium">{order.id}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          {order.customer}
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>ID</TableHead>
+                <TableHead>Cliente</TableHead>
+                <TableHead>Fecha/Hora</TableHead>
+                <TableHead>Total</TableHead>
+                <TableHead>Detalles</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredOrders.map((order) => (
+                <TableRow key={order.id}>
+                  <TableCell className="font-medium">{order.id}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      {order.customer_name}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-1">
+                        <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                        {formatDate(order.order_date)}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        {formatTime(order.order_date)}
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>{formatPrice(order.total)}</TableCell>
+                  <TableCell>
+                    <div className="space-y-1">
+                      {order.order_details.map((detail, index) => (
+                        <div key={index} className="text-sm">
+                          {detail.quantity}x {detail.dish_name}
                         </div>
-                      </TableCell>
-                      <TableCell>Mesa {order.table}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-1">
-                            <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                            {order.date}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                            {order.time}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            order.status === "completado"
-                              ? "default"
-                              : order.status === "en proceso"
-                                ? "secondary"
-                                : "outline"
-                          }
-                        >
-                          {order.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>${order.total.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm">
-                          Detalles
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                      ))}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="sm">
+                      Detalles
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   )
 }

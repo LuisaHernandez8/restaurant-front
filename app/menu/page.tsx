@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -23,101 +23,52 @@ import { Switch } from "@/components/ui/switch"
 import { Edit, Plus, Search, Trash } from "lucide-react"
 import { toast } from "sonner"
 import { useForm } from "react-hook-form"
-
-// Datos de ejemplo
-const menuItems = [
-  {
-    id: 1,
-    name: "Paella Valenciana",
-    category: "Plato Principal",
-    price: 18.99,
-    description: "Arroz con azafrán, pollo, conejo, judías verdes y garrofón.",
-    available: true,
-    image: "/placeholder.svg?height=150&width=300&text=Paella%20Valenciana",
-  },
-  {
-    id: 2,
-    name: "Ceviche de Camarones",
-    category: "Entrada",
-    price: 12.5,
-    description: "Camarones marinados en jugo de limón con cebolla, cilantro y ají.",
-    available: true,
-    image: "/placeholder.svg?height=150&width=300&text=Ceviche%20de%20Camarones",
-  },
-  {
-    id: 3,
-    name: "Lomo Saltado",
-    category: "Plato Principal",
-    price: 16.75,
-    description: "Tiras de lomo de res salteadas con cebolla, tomate y papas fritas.",
-    available: true,
-    image: "/placeholder.svg?height=150&width=300&text=Lomo%20Saltado",
-  },
-  {
-    id: 4,
-    name: "Tiramisú",
-    category: "Postre",
-    price: 8.25,
-    description: "Postre italiano con capas de bizcocho empapado en café y crema de mascarpone.",
-    available: false,
-    image: "/placeholder.svg?height=150&width=300&text=Tiramisu",
-  },
-  {
-    id: 5,
-    name: "Ensalada César",
-    category: "Entrada",
-    price: 9.5,
-    description: "Lechuga romana, crutones, queso parmesano y aderezo César.",
-    available: true,
-    image: "/placeholder.svg?height=150&width=300&text=Ensalada%20Cesar",
-  },
-  {
-    id: 6,
-    name: "Sopa de Mariscos",
-    category: "Entrada",
-    price: 14.99,
-    description: "Sopa con variedad de mariscos, verduras y hierbas aromáticas.",
-    available: true,
-    image: "/placeholder.svg?height=150&width=300&text=Sopa%20de%20Mariscos",
-  },
-]
-
-interface CreateMenuItemDTO {
-  name: string;
-  category: string;
-  price: number;
-  available: boolean;
-}
+import { getDishes, createDish, Dish, CreateDishDTO } from "@/api/dishes"
 
 export default function MenuPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [availabilityFilter, setAvailabilityFilter] = useState("all")
+  const [menuItems, setMenuItems] = useState<Dish[]>([])
 
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
-  } = useForm<CreateMenuItemDTO>()
+  } = useForm<CreateDishDTO>()
 
-  const handleMenuItemSubmit = async (data: CreateMenuItemDTO) => {
+  const handleMenuItemSubmit = async (data: CreateDishDTO) => {
     try {
-      // Aquí irá la llamada a la API
-      console.log(data)
+      console.log('Datos del formulario:', data) // Para depuración
+      const response = await createDish(data)
+      setMenuItems(prev => [response, ...prev])
       toast.success("Plato guardado con éxito")
       setIsDialogOpen(false)
       reset()
     } catch (error) {
+      console.error('Error al crear el plato:', error)
       toast.error("Error al crear el plato")
     }
   }
 
+  useEffect(() => {
+    const fetchDishes = async () => {
+      try {
+        const dishes = await getDishes()
+        setMenuItems(dishes)
+      } catch (error) {
+        console.error("Error al obtener los platos:", error)
+        toast.error("Error al cargar los platos")
+      }
+    }
+    fetchDishes()
+  }, [])
+
   const filteredItems = menuItems.filter((item) => {
-    const matchesSearch =
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.description.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesCategory = categoryFilter === "all" || item.category === categoryFilter
     const matchesAvailability =
       availabilityFilter === "all" ||
@@ -166,7 +117,8 @@ export default function MenuPage() {
                   <div className="grid gap-2">
                     <Label htmlFor="category">Categoría</Label>
                     <Select 
-                      onValueChange={(value) => register("category").onChange({ target: { value } })}
+                      onValueChange={(value) => setValue("category", value, { shouldValidate: true })}
+                      defaultValue=""
                     >
                       <SelectTrigger id="category">
                         <SelectValue placeholder="Seleccionar" />
@@ -179,7 +131,7 @@ export default function MenuPage() {
                       </SelectContent>
                     </Select>
                     {errors.category && (
-                      <span className="text-sm text-red-500">{errors.category.message}</span>
+                      <span className="text-sm text-red-500">La categoría es requerida</span>
                     )}
                   </div>
                 </div>
@@ -274,9 +226,6 @@ export default function MenuPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filteredItems.map((item) => (
               <Card key={item.id} className="overflow-hidden">
-                <div className="aspect-video w-full bg-muted">
-                  <img src={item.image || "/placeholder.svg"} alt={item.name} className="h-full w-full object-cover" />
-                </div>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold">{item.name}</h3>
@@ -286,9 +235,8 @@ export default function MenuPage() {
                   </div>
                   <div className="mt-2 flex items-center justify-between text-sm text-muted-foreground">
                     <span>{item.category}</span>
-                    <span>${item.price.toFixed(2)}</span>
+                    <span>${Number(item.price).toFixed(2)}</span>
                   </div>
-                  <p className="mt-2 text-sm line-clamp-2">{item.description}</p>
                 </CardContent>
                 <CardFooter className="p-4 pt-0 flex justify-between">
                   <Button variant="outline" size="sm" onClick={() => toggleAvailability(item.id)}>
@@ -324,20 +272,10 @@ export default function MenuPage() {
                   {filteredItems.map((item) => (
                     <tr key={item.id} className="border-b">
                       <td className="p-4">
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={item.image || "/placeholder.svg"}
-                            alt={item.name}
-                            className="h-10 w-10 rounded-md object-cover"
-                          />
-                          <div>
-                            <p className="font-medium">{item.name}</p>
-                            <p className="text-sm text-muted-foreground line-clamp-1">{item.description}</p>
-                          </div>
-                        </div>
+                        <p className="font-medium">{item.name}</p>
                       </td>
                       <td className="p-4">{item.category}</td>
-                      <td className="p-4">${item.price.toFixed(2)}</td>
+                      <td className="p-4">${Number(item.price).toFixed(2)}</td>
                       <td className="p-4">
                         <Badge variant={item.available ? "default" : "destructive"}>
                           {item.available ? "Disponible" : "No Disponible"}
