@@ -26,7 +26,7 @@ import { format, addDays, subDays } from "date-fns"
 import { es } from "date-fns/locale"
 import { getAllCustomers, type Customer } from "@/api/customers"
 import { getTables, type Table } from "@/api/tables"
-import { createReservation, getAllReservations, type Reservation } from "@/api/reservations"
+import { createReservation, getAllReservations, type Reservation, updateReservation, deleteReservation } from "@/api/reservations"
 
 export default function ReservasPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -36,6 +36,7 @@ export default function ReservasPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [guestsFilter, setGuestsFilter] = useState("all")
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null)
   const [customers, setCustomers] = useState<Customer[]>([])
   const [tables, setTables] = useState<Table[]>([])
@@ -81,6 +82,13 @@ export default function ReservasPage() {
     // Validar que todos los campos estén llenos
     if (!formData.customer_id || !formData.table_id || !formData.reservation_date || !formData.reservation_time) {
       toast.error("Por favor complete todos los campos")
+      return
+    }
+
+    // Validar que la fecha de la reserva no sea menor a la fecha actual (solo YYYY-MM-DD)
+    const todayStr = new Date().toISOString().slice(0, 10)
+    if (formData.reservation_date < todayStr) {
+      toast.error("La fecha de la reserva no puede ser menor a la fecha actual")
       return
     }
 
@@ -178,6 +186,31 @@ export default function ReservasPage() {
 
   // Ordenar horas
   const sortedHours = Object.keys(reservationsByTime).sort()
+
+  const handleDeleteReservation = async () => {
+    if (!selectedReservation) return
+
+    try {
+      // Eliminación optimista
+      setReservations(prevReservations => 
+        prevReservations.filter(reservation => reservation.id !== selectedReservation.id)
+      )
+
+      await deleteReservation(selectedReservation.id)
+      toast.success("Reserva eliminada exitosamente")
+      setIsDeleteDialogOpen(false)
+      setIsDetailDialogOpen(false)
+    } catch (error) {
+      // Revertir cambios si hay error
+      setReservations(prevReservations => [...prevReservations, selectedReservation])
+
+      if (error instanceof Error) {
+        toast.error(`Error al eliminar la reserva: ${error.message}`)
+      } else {
+        toast.error("Error inesperado al eliminar la reserva")
+      }
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -470,43 +503,43 @@ export default function ReservasPage() {
                           const customer = customers.find(c => c.id === reservation.customer_id)
                           const table = tables.find(t => t.id === reservation.table_id)
                           return (
-                            <Card
-                              key={reservation.id}
-                              className="elegant-card overflow-hidden border-l-4 border-restaurant-stone/10 bg-white"
+                          <Card
+                            key={reservation.id}
+                            className="elegant-card overflow-hidden border-l-4 border-restaurant-stone/10 bg-white"
                               style={{ borderLeftColor: "#D4AF37" }}
-                            >
-                              <CardContent className="p-4">
-                                <div className="flex justify-between items-start">
-                                  <div>
+                          >
+                            <CardContent className="p-4">
+                              <div className="flex justify-between items-start">
+                                <div>
                                     <h3 className="font-medium text-restaurant-black">{customer?.name}</h3>
-                                    <div className="flex items-center gap-1 text-sm text-restaurant-stone">
-                                      <Clock className="h-3 w-3 text-restaurant-gold" />
+                                  <div className="flex items-center gap-1 text-sm text-restaurant-stone">
+                                    <Clock className="h-3 w-3 text-restaurant-gold" />
                                       {reservation.reservation_time}
-                                    </div>
                                   </div>
-                                  <Badge
+                                </div>
+                                <Badge
                                     variant="default"
                                     className="bg-restaurant-olive text-restaurant-ivory"
                                   >
                                     Confirmada
-                                  </Badge>
-                                </div>
-                                <div className="mt-2 flex items-center gap-1 text-sm">
-                                  <Users className="h-3 w-3 text-restaurant-gold" />
-                                  <span className="text-restaurant-black">
+                                </Badge>
+                              </div>
+                              <div className="mt-2 flex items-center gap-1 text-sm">
+                                <Users className="h-3 w-3 text-restaurant-gold" />
+                                <span className="text-restaurant-black">
                                     Mesa {table?.id} - {table?.capacity} personas ({table?.location})
-                                  </span>
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="mt-2 w-full text-restaurant-wine hover:text-restaurant-wine hover:bg-restaurant-wine/10"
-                                  onClick={() => openDetailDialog(reservation)}
-                                >
-                                  Ver Detalles
-                                </Button>
-                              </CardContent>
-                            </Card>
+                                </span>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="mt-2 w-full text-restaurant-wine hover:text-restaurant-wine hover:bg-restaurant-wine/10"
+                                onClick={() => openDetailDialog(reservation)}
+                              >
+                                Ver Detalles
+                              </Button>
+                            </CardContent>
+                          </Card>
                           )
                         })}
                       </div>
@@ -533,52 +566,52 @@ export default function ReservasPage() {
                           const customer = customers.find(c => c.id === reservation.customer_id)
                           const table = tables.find(t => t.id === reservation.table_id)
                           return (
-                            <TableRow key={reservation.id} className="hover:bg-restaurant-ivory/50">
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <Avatar className="h-8 w-8 border border-restaurant-gold/20">
+                          <TableRow key={reservation.id} className="hover:bg-restaurant-ivory/50">
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Avatar className="h-8 w-8 border border-restaurant-gold/20">
                                     <AvatarImage src={`/placeholder.svg?height=32&width=32`} alt={customer?.name} />
-                                    <AvatarFallback className="bg-restaurant-olive text-restaurant-ivory">
+                                  <AvatarFallback className="bg-restaurant-olive text-restaurant-ivory">
                                       {customer?.name?.substring(0, 2).toUpperCase()}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <div>
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
                                     <div className="font-medium text-restaurant-black">{customer?.name}</div>
                                     <div className="text-xs text-restaurant-stone">{customer?.phone}</div>
-                                  </div>
                                 </div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-1">
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1">
                                   <Users className="h-4 w-4 text-restaurant-gold" />
                                   Mesa {table?.id} ({table?.location})
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-1">
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1">
                                   <Clock className="h-4 w-4 text-restaurant-gold" />
                                   {reservation.reservation_time}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <Badge
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
                                   variant="default"
                                   className="bg-restaurant-olive text-restaurant-ivory"
                                 >
                                   Confirmada
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-restaurant-wine hover:text-restaurant-wine hover:bg-restaurant-wine/10"
-                                  onClick={() => openDetailDialog(reservation)}
-                                >
-                                  Detalles
-                                </Button>
-                              </TableCell>
-                            </TableRow>
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-restaurant-wine hover:text-restaurant-wine hover:bg-restaurant-wine/10"
+                                onClick={() => openDetailDialog(reservation)}
+                              >
+                                Detalles
+                              </Button>
+                            </TableCell>
+                          </TableRow>
                           )
                         })}
                       </TableBody>
@@ -607,64 +640,64 @@ export default function ReservasPage() {
                 const table = tables.find(t => t.id === selectedReservation.table_id)
                 return (
                   <>
-                    <div className="flex items-center gap-4">
-                      <Avatar className="h-12 w-12 border border-restaurant-gold/20">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-12 w-12 border border-restaurant-gold/20">
                         <AvatarImage src={`/placeholder.svg?height=48&width=48`} alt={customer?.name} />
-                        <AvatarFallback className="bg-restaurant-olive text-restaurant-ivory">
+                  <AvatarFallback className="bg-restaurant-olive text-restaurant-ivory">
                           {customer?.name?.substring(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
+                  </AvatarFallback>
+                </Avatar>
+                <div>
                         <h3 className="font-medium text-restaurant-black">{customer?.name}</h3>
                         <div className="text-sm text-restaurant-stone">{customer?.email}</div>
-                      </div>
-                    </div>
+                </div>
+              </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <Label className="text-xs text-restaurant-stone">Teléfono</Label>
-                        <div className="flex items-center gap-1 text-restaurant-black">
-                          <User className="h-4 w-4 text-restaurant-gold" />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs text-restaurant-stone">Teléfono</Label>
+                  <div className="flex items-center gap-1 text-restaurant-black">
+                    <User className="h-4 w-4 text-restaurant-gold" />
                           {customer?.phone}
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-restaurant-stone">Estado</Label>
-                        <div>
-                          <Badge
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-restaurant-stone">Estado</Label>
+                  <div>
+                    <Badge
                             variant="default"
                             className="bg-restaurant-olive text-restaurant-ivory"
                           >
                             Confirmada
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
+                    </Badge>
+                  </div>
+                </div>
+              </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <Label className="text-xs text-restaurant-stone">Fecha</Label>
-                        <div className="flex items-center gap-1 text-restaurant-black">
-                          <CalendarDays className="h-4 w-4 text-restaurant-gold" />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs text-restaurant-stone">Fecha</Label>
+                  <div className="flex items-center gap-1 text-restaurant-black">
+                    <CalendarDays className="h-4 w-4 text-restaurant-gold" />
                           {formatDate(selectedReservation.reservation_date)}
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-restaurant-stone">Hora</Label>
-                        <div className="flex items-center gap-1 text-restaurant-black">
-                          <Clock className="h-4 w-4 text-restaurant-gold" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-restaurant-stone">Hora</Label>
+                  <div className="flex items-center gap-1 text-restaurant-black">
+                    <Clock className="h-4 w-4 text-restaurant-gold" />
                           {selectedReservation.reservation_time}
-                        </div>
-                      </div>
-                    </div>
+                  </div>
+                </div>
+              </div>
 
-                    <div className="space-y-1">
+              <div className="space-y-1">
                       <Label className="text-xs text-restaurant-stone">Mesa</Label>
-                      <div className="flex items-center gap-1 text-restaurant-black">
-                        <Users className="h-4 w-4 text-restaurant-gold" />
+                <div className="flex items-center gap-1 text-restaurant-black">
+                  <Users className="h-4 w-4 text-restaurant-gold" />
                         Mesa {table?.id} - {table?.capacity} personas ({table?.location})
-                      </div>
-                    </div>
+                </div>
+              </div>
                   </>
                 )
               })()}
@@ -673,19 +706,42 @@ export default function ReservasPage() {
           <DialogFooter className="flex gap-2 sm:justify-between">
             <div className="flex gap-2">
               <Button
-                variant="outline"
-                className="border-restaurant-stone/20 bg-white text-restaurant-black hover:bg-restaurant-stone/10"
-              >
-                Editar
-              </Button>
-              <Button
                 variant="destructive"
                 className="bg-restaurant-wine text-restaurant-ivory hover:bg-restaurant-wine/90"
+                onClick={() => setIsDeleteDialogOpen(true)}
               >
                 Cancelar Reserva
               </Button>
             </div>
             <Button onClick={() => setIsDetailDialogOpen(false)}>Cerrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de Confirmación de Eliminación */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-[425px] border-restaurant-stone/10 bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-restaurant-black">Cancelar Reserva</DialogTitle>
+            <DialogDescription className="text-restaurant-stone">
+              ¿Está seguro que desea cancelar la reserva #{selectedReservation?.id}? Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+              className="border-restaurant-stone/20 bg-white text-restaurant-black hover:text-black hover:bg-restaurant-stone/10"
+            >
+              No cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteReservation}
+              className="bg-restaurant-wine text-restaurant-ivory hover:bg-restaurant-wine/90"
+            >
+              Sí, Cancelar Reserva
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

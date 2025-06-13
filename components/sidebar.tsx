@@ -12,15 +12,20 @@ const routes = [
     href: "/",
   },
   {
-    label: "Reservas",
-    icon: CalendarDays,
-    href: "/reservas",
+    label: "Clientes",
+    icon: Users,
+    href: "/clientes",
   },
   {
     label: "Menú",
     icon: ChefHat,
     href: "/menu",
   },
+  {
+    label: "Reservas",
+    icon: CalendarDays,
+    href: "/reservas",
+  }, 
   {
     label: "Pedidos",
     icon: ClipboardList,
@@ -30,17 +35,7 @@ const routes = [
     label: "Reseñas",
     icon: MessageSquare,
     href: "/resenas",
-  },
-  {
-    label: "Clientes",
-    icon: Users,
-    href: "/clientes",
-  },
-  {
-    label: "Configuración",
-    icon: Settings,
-    href: "/configuracion",
-  },
+  }
 ]
 
 export default function Sidebar() {

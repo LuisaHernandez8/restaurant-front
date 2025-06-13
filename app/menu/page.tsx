@@ -23,10 +23,13 @@ import { Switch } from "@/components/ui/switch"
 import { Edit, Plus, Search, Trash } from "lucide-react"
 import { toast } from "sonner"
 import { useForm } from "react-hook-form"
-import { getDishes, createDish, Dish, CreateDishDTO } from "@/api/dishes"
+import { getDishes, createDish, Dish, CreateDishDTO, updateDish, deleteDish } from "@/api/dishes"
 
 export default function MenuPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [selectedDish, setSelectedDish] = useState<Dish | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [availabilityFilter, setAvailabilityFilter] = useState("all")
@@ -40,13 +43,21 @@ export default function MenuPage() {
     formState: { errors },
   } = useForm<CreateDishDTO>()
 
+  const {
+    register: registerEdit,
+    handleSubmit: handleSubmitEdit,
+    reset: resetEdit,
+    setValue: setEditValue,
+    formState: { errors: errorsEdit },
+  } = useForm<CreateDishDTO>()
+
   const handleMenuItemSubmit = async (data: CreateDishDTO) => {
     try {
       console.log('Datos del formulario:', data) // Para depuración
       const response = await createDish(data)
       setMenuItems(prev => [response, ...prev])
       toast.success("Plato guardado con éxito")
-      setIsDialogOpen(false)
+    setIsDialogOpen(false)
       reset()
     } catch (error) {
       console.error('Error al crear el plato:', error)
@@ -78,10 +89,76 @@ export default function MenuPage() {
     return matchesSearch && matchesCategory && matchesAvailability
   })
 
-  const toggleAvailability = (id: number) => {
-    toast.success("Estado actualizado", {
-      description: "La disponibilidad del plato ha sido actualizada",
-    })
+  const handleEditClick = (dish: Dish) => {
+    setSelectedDish(dish)
+    setEditValue('name', dish.name)
+    setEditValue('category', dish.category)
+    setEditValue('price', dish.price)
+    setEditValue('available', dish.available)
+    setIsEditDialogOpen(true)
+  }
+
+  const handleEditSubmit = async (data: CreateDishDTO) => {
+    if (!selectedDish) return
+
+    // Actualización optimista
+    const updatedDish = {
+      ...selectedDish,
+      ...data
+    }
+    
+    setMenuItems(prevItems => 
+      prevItems.map(item => 
+        item.id === selectedDish.id ? updatedDish : item
+      )
+    )
+
+    try {
+      await updateDish(selectedDish.id, data)
+      toast.success("Plato actualizado exitosamente")
+      setIsEditDialogOpen(false)
+      resetEdit()
+    } catch (error) {
+      // Revertir cambios si hay error
+      setMenuItems(prevItems => 
+        prevItems.map(item => 
+          item.id === selectedDish.id ? selectedDish : item
+        )
+      )
+
+      if (error instanceof Error) {
+        toast.error(`Error al actualizar el plato: ${error.message}`)
+      } else {
+        toast.error("Error inesperado al actualizar el plato")
+      }
+    }
+  }
+
+  const handleDeleteClick = (dish: Dish) => {
+    setSelectedDish(dish)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!selectedDish) return
+
+    // Eliminación optimista
+    setMenuItems(prevItems => prevItems.filter(item => item.id !== selectedDish.id))
+
+    try {
+      await deleteDish(selectedDish.id)
+      toast.success("Plato eliminado exitosamente")
+      setIsDeleteDialogOpen(false)
+    } catch (error) {
+      // Revertir cambios si hay error
+      setMenuItems(prevItems => [...prevItems, selectedDish])
+
+      if (error instanceof Error) {
+        toast.error(`Error al eliminar el plato: ${error.message}`)
+      } else {
+        toast.error("Error inesperado al eliminar el plato")
+      }
+    }
   }
 
   return (
@@ -238,18 +315,13 @@ export default function MenuPage() {
                     <span>${Number(item.price).toFixed(2)}</span>
                   </div>
                 </CardContent>
-                <CardFooter className="p-4 pt-0 flex justify-between">
-                  <Button variant="outline" size="sm" onClick={() => toggleAvailability(item.id)}>
-                    {item.available ? "Marcar No Disponible" : "Marcar Disponible"}
+                <CardFooter className="p-4 pt-0 flex justify-end gap-2">
+                  <Button variant="ghost" size="icon" onClick={() => handleEditClick(item)}>
+                    <Edit className="h-4 w-4" />
                   </Button>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="icon">
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon">
-                      <Trash className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(item)}>
+                    <Trash className="h-4 w-4" />
+                  </Button>
                 </CardFooter>
               </Card>
             ))}
@@ -283,13 +355,10 @@ export default function MenuPage() {
                       </td>
                       <td className="p-4 text-right">
                         <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => toggleAvailability(item.id)}>
-                            {item.available ? "Desactivar" : "Activar"}
-                          </Button>
-                          <Button variant="ghost" size="icon">
+                          <Button variant="ghost" size="icon" onClick={() => handleEditClick(item)}>
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon">
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(item)}>
                             <Trash className="h-4 w-4" />
                           </Button>
                         </div>
@@ -302,6 +371,115 @@ export default function MenuPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Diálogo de edición */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[550px]">
+          <DialogHeader>
+            <DialogTitle>Editar Plato</DialogTitle>
+            <DialogDescription>Modifique los detalles del plato</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmitEdit(handleEditSubmit)}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-name">Nombre del Plato</Label>
+                  <Input 
+                    id="edit-name" 
+                    {...registerEdit("name", { required: "El nombre es requerido" })} 
+                    placeholder="Nombre del plato" 
+                  />
+                  {errorsEdit.name && (
+                    <span className="text-sm text-red-500">{errorsEdit.name.message}</span>
+                  )}
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-category">Categoría</Label>
+                  <Select 
+                    onValueChange={(value) => setEditValue("category", value, { shouldValidate: true })}
+                    defaultValue={selectedDish?.category}
+                  >
+                    <SelectTrigger id="edit-category">
+                      <SelectValue placeholder="Seleccionar" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Entrada">Entrada</SelectItem>
+                      <SelectItem value="Plato Principal">Plato Principal</SelectItem>
+                      <SelectItem value="Postre">Postre</SelectItem>
+                      <SelectItem value="Bebida">Bebida</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {errorsEdit.category && (
+                    <span className="text-sm text-red-500">La categoría es requerida</span>
+                  )}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-price">Precio</Label>
+                  <Input 
+                    id="edit-price" 
+                    type="number" 
+                    step="0.01" 
+                    {...registerEdit("price", { 
+                      required: "El precio es requerido",
+                      min: { value: 0, message: "El precio debe ser mayor a 0" }
+                    })} 
+                    placeholder="0.00" 
+                  />
+                  {errorsEdit.price && (
+                    <span className="text-sm text-red-500">{errorsEdit.price.message}</span>
+                  )}
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-available">Disponibilidad</Label>
+                  <Select 
+                    onValueChange={(value) => setEditValue("available", value === "true", { shouldValidate: true })}
+                    defaultValue={selectedDish?.available ? "true" : "false"}
+                  >
+                    <SelectTrigger id="edit-available">
+                      <SelectValue placeholder="Seleccionar disponibilidad" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="true">Disponible</SelectItem>
+                      <SelectItem value="false">No Disponible</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit">Guardar Cambios</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de eliminación */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Eliminar Plato</DialogTitle>
+            <DialogDescription>
+              ¿Está seguro que desea eliminar el plato {selectedDish?.name}? Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+            >
+              Eliminar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

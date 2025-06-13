@@ -25,21 +25,21 @@ export interface CreateOrderDTO {
 }
 
 export const getOrders = async (): Promise<Order[]> => {
-  try {
+    try {
     const response = await api.get<{ message: string; data: Order[] }>("/orders")
     return response.data.data
-  } catch (error) {
-    console.error("Error fetching orders:", error)
-    throw error
-  }
+    } catch (error) {
+        console.error("Error fetching orders:", error)
+        throw error
+    }
 }
 
 export const createOrder = async (order: CreateOrderDTO): Promise<Order> => {
-  try {
+    try {
     const response = await api.post<{ message: string; data: Order }>("/orders", order)
     return response.data.data
-  } catch (error) {
-    console.error("Error creating order:", error)
-    throw error
-  }
+    } catch (error) {
+        console.error("Error creating order:", error)
+        throw error
+    }
 }

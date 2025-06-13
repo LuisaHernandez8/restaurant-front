@@ -125,9 +125,9 @@ export default function PedidosPage() {
 
       await createOrder(orderData)
       toast.success("Pedido creado con éxito")
-      setOrderItems([])
+    setOrderItems([])
       setSelectedCustomer("")
-      setIsDialogOpen(false)
+    setIsDialogOpen(false)
       // Actualizar la lista de pedidos
       await fetchOrders()
     } catch (error: any) {
@@ -184,20 +184,20 @@ export default function PedidosPage() {
             </DialogHeader>
             <form onSubmit={handleOrderSubmit}>
               <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="customer">Cliente</Label>
+                  <div className="grid gap-2">
+                    <Label htmlFor="customer">Cliente</Label>
                   <Select value={selectedCustomer} onValueChange={setSelectedCustomer} required>
                     <SelectTrigger id="customer">
                       <SelectValue placeholder="Seleccionar cliente" />
-                    </SelectTrigger>
-                    <SelectContent>
+                      </SelectTrigger>
+                      <SelectContent>
                       {customers.map((customer) => (
                         <SelectItem key={customer.id} value={customer.id.toString()}>
                           {customer.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                 </div>
 
                 <div className="border rounded-md p-4">
@@ -320,43 +320,43 @@ export default function PedidosPage() {
         </CardHeader>
       </Card>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Fecha/Hora</TableHead>
-                <TableHead>Total</TableHead>
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ID</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Fecha/Hora</TableHead>
+                    <TableHead>Total</TableHead>
                 <TableHead>Detalles</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredOrders.map((order) => (
-                <TableRow key={order.id}>
-                  <TableCell className="font-medium">{order.id}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <User className="h-4 w-4 text-muted-foreground" />
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredOrders.map((order) => (
+                    <TableRow key={order.id}>
+                      <TableCell className="font-medium">{order.id}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <User className="h-4 w-4 text-muted-foreground" />
                       {order.customer_name}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-1">
-                        <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-1">
+                            <CalendarDays className="h-4 w-4 text-muted-foreground" />
                         {formatDate(order.order_date)}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
                         {formatTime(order.order_date)}
-                      </div>
-                    </div>
-                  </TableCell>
+                          </div>
+                        </div>
+                      </TableCell>
                   <TableCell>{formatPrice(order.total)}</TableCell>
-                  <TableCell>
+                      <TableCell>
                     <div className="space-y-1">
                       {order.order_details.map((detail, index) => (
                         <div key={index} className="text-sm">
@@ -364,18 +364,18 @@ export default function PedidosPage() {
                         </div>
                       ))}
                     </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm">
-                      Detalles
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm">
+                          Detalles
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
     </div>
   )
 }

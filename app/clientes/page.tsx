@@ -24,7 +24,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { CalendarDays, ClipboardList, Plus, Search, User, ChevronLeft, ChevronRight } from "lucide-react"
 import { toast } from "sonner"
 import { Switch } from "@/components/ui/switch"
-import { createCustomer, Customer, CreateCustomerDTO, getAllCustomers } from "@/api/customers"
+import { createCustomer, Customer, CreateCustomerDTO, getAllCustomers, updateCustomer, deleteCustomer } from "@/api/customers"
 import { useForm } from "react-hook-form"
 
 
@@ -135,12 +135,34 @@ const orderHistory = [
   },
 ]
 
+interface EditPhoneFormData {
+  phone: string;
+}
+
 export default function ClientesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [customers, setCustomers] = useState<Customer[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 5
+
+  const {
+    register: registerCreate,
+    handleSubmit: handleSubmitCreate,
+    reset: resetCreate,
+    formState: { errors: errorsCreate },
+  } = useForm<CreateCustomerDTO>()
+
+  const {
+    register: registerEdit,
+    handleSubmit: handleSubmitEdit,
+    reset: resetEdit,
+    formState: { errors: errorsEdit },
+    setValue: setEditValue,
+  } = useForm<EditPhoneFormData>()
 
   useEffect(() => {
     const fetchCustomers = async () => {
@@ -155,20 +177,13 @@ export default function ClientesPage() {
     fetchCustomers()
   }, [])
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm<CreateCustomerDTO>()
-
   const handleCustomerSubmit = async (data: CreateCustomerDTO) => {
     try {
       const response = await createCustomer(data)
       setCustomers(prevCustomers => [...prevCustomers, response])
       toast.success("Cliente creado exitosamente")
       setIsDialogOpen(false)
-      reset()
+      resetCreate()
     } catch (error) {
       if (error instanceof Error) {
         toast.error(`Error al crear el cliente: ${error.message}`)
@@ -176,6 +191,76 @@ export default function ClientesPage() {
         toast.error("Error inesperado al crear el cliente")
       }
       console.error("Error en handleCustomerSubmit:", error)
+    }
+  }
+
+  const handleEditClick = (customer: Customer) => {
+    setSelectedCustomer(customer)
+    setEditValue('phone', customer.phone)
+    setIsEditDialogOpen(true)
+  }
+
+  const handleEditSubmit = async (data: EditPhoneFormData) => {
+    if (!selectedCustomer) return
+
+    // Actualización optimista: actualizamos el estado local inmediatamente
+    const updatedCustomer = {
+      ...selectedCustomer,
+      phone: data.phone
+    }
+    
+    setCustomers(prevCustomers => 
+      prevCustomers.map(customer => 
+        customer.id === selectedCustomer.id ? updatedCustomer : customer
+      )
+    )
+
+    try {
+      // Llamada al API
+      await updateCustomer(selectedCustomer.id, { 
+        phone: data.phone,
+        name: selectedCustomer.name,
+        email: selectedCustomer.email
+      })
+      
+      toast.success("Teléfono actualizado exitosamente")
+      setIsEditDialogOpen(false)
+      resetEdit()
+    } catch (error) {
+      // Si hay error, revertimos el cambio en el estado local
+      setCustomers(prevCustomers => 
+        prevCustomers.map(customer => 
+          customer.id === selectedCustomer.id ? selectedCustomer : customer
+        )
+      )
+
+      if (error instanceof Error) {
+        toast.error(`Error al actualizar el teléfono: ${error.message}`)
+      } else {
+        toast.error("Error inesperado al actualizar el teléfono")
+      }
+    }
+  }
+
+  const handleDeleteClick = (customer: Customer) => {
+    setSelectedCustomer(customer)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!selectedCustomer) return
+
+    try {
+      await deleteCustomer(selectedCustomer.id)
+      setCustomers(prevCustomers => prevCustomers.filter(c => c.id !== selectedCustomer.id))
+      toast.success("Cliente eliminado exitosamente")
+      setIsDeleteDialogOpen(false)
+    } catch (error) {
+      if (error instanceof Error) {
+        toast.error(`Error al eliminar el cliente: ${error.message}`)
+      } else {
+        toast.error("Error inesperado al eliminar el cliente")
+      }
     }
   }
 
@@ -208,17 +293,17 @@ export default function ClientesPage() {
               <DialogTitle>Añadir Nuevo Cliente</DialogTitle>
               <DialogDescription>Complete los datos para registrar un nuevo cliente</DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSubmit(handleCustomerSubmit)}>
+            <form onSubmit={handleSubmitCreate(handleCustomerSubmit)}>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
                   <Label htmlFor="name">Nombre Completo</Label>
                   <Input 
                     id="name" 
-                    {...register("name", { required: "El nombre es requerido" })} 
+                    {...registerCreate("name", { required: "El nombre es requerido" })} 
                     placeholder="Nombre y apellidos" 
                   />
-                  {errors.name && (
-                    <span className="text-sm text-red-500">{errors.name.message}</span>
+                  {errorsCreate.name && (
+                    <span className="text-sm text-red-500">{errorsCreate.name.message}</span>
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -227,7 +312,7 @@ export default function ClientesPage() {
                     <Input 
                       id="email" 
                       type="email" 
-                      {...register("email", { 
+                      {...registerCreate("email", { 
                         required: "El email es requerido",
                         pattern: {
                           value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
@@ -236,15 +321,15 @@ export default function ClientesPage() {
                       })} 
                       placeholder="correo@ejemplo.com" 
                     />
-                    {errors.email && (
-                      <span className="text-sm text-red-500">{errors.email.message}</span>
+                    {errorsCreate.email && (
+                      <span className="text-sm text-red-500">{errorsCreate.email.message}</span>
                     )}
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="phone">Teléfono</Label>
                     <Input 
                       id="phone" 
-                      {...register("phone", { 
+                      {...registerCreate("phone", { 
                         required: "El teléfono es requerido",
                         pattern: {
                           value: /^[0-9]{10}$/,
@@ -253,8 +338,8 @@ export default function ClientesPage() {
                       })} 
                       placeholder="3146754323" 
                     />
-                    {errors.phone && (
-                      <span className="text-sm text-red-500">{errors.phone.message}</span>
+                    {errorsCreate.phone && (
+                      <span className="text-sm text-red-500">{errorsCreate.phone.message}</span>
                     )}
                   </div>
                 </div>
@@ -316,10 +401,18 @@ export default function ClientesPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <Button variant="outline" size="sm">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleEditClick(customer)}
+                      >
                         Editar
                       </Button>
-                      <Button variant="outline" size="sm">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleDeleteClick(customer)}
+                      >
                         Eliminar
                       </Button>
                     </div>
@@ -365,6 +458,84 @@ export default function ClientesPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Diálogo de edición */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Editar Cliente</DialogTitle>
+            <DialogDescription>
+              Actualice la información del cliente
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmitEdit(handleEditSubmit)}>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label>Nombre</Label>
+                <Input 
+                  value={selectedCustomer?.name}
+                  disabled
+                  className="bg-muted"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Email</Label>
+                <Input 
+                  value={selectedCustomer?.email}
+                  disabled
+                  className="bg-muted"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-phone">Teléfono</Label>
+                <Input 
+                  id="edit-phone" 
+                  {...registerEdit("phone", { 
+                    required: "El teléfono es requerido",
+                    pattern: {
+                      value: /^[0-9]{10}$/,
+                      message: "El teléfono debe tener 10 dígitos"
+                    }
+                  })} 
+                  placeholder="3146754323" 
+                />
+                {errorsEdit.phone && (
+                  <span className="text-sm text-red-500">{errorsEdit.phone.message}</span>
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit">Guardar Cambios</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de eliminación */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Eliminar Cliente</DialogTitle>
+            <DialogDescription>
+              ¿Está seguro que desea eliminar al cliente {selectedCustomer?.name}? Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+            >
+              Eliminar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
