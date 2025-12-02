@@ -24,9 +24,10 @@ import { CalendarDays, ChevronLeft, ChevronRight, Clock, Filter, Plus, Search, U
 import { toast } from "sonner"
 import { format, addDays, subDays } from "date-fns"
 import { es } from "date-fns/locale"
-import { getAllCustomers, type Customer } from "@/api/customers"
+import { getAllCustomers, createCustomer, type Customer, type CreateCustomerDTO } from "@/api/customers"
 import { getTables, type Table } from "@/api/tables"
 import { createReservation, getAllReservations, type Reservation, updateReservation, deleteReservation } from "@/api/reservations"
+import { useForm } from "react-hook-form"
 
 export default function ReservasPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -41,12 +42,21 @@ export default function ReservasPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [tables, setTables] = useState<Table[]>([])
   const [reservations, setReservations] = useState<Reservation[]>([])
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false)
   const [formData, setFormData] = useState({
     customer_id: "",
     table_id: "",
     reservation_date: format(new Date(), "yyyy-MM-dd"),
     reservation_time: "20:00"
   })
+
+  // Formulario para crear cliente
+  const {
+    register: registerCustomer,
+    handleSubmit: handleSubmitCustomer,
+    reset: resetCustomer,
+    formState: { errors: errorsCustomer },
+  } = useForm<CreateCustomerDTO>()
 
   const fetchReservations = async () => {
     try {
@@ -58,16 +68,45 @@ export default function ReservasPage() {
     }
   }
 
+  const fetchCustomers = async () => {
+    try {
+      const customersData = await getAllCustomers()
+      setCustomers(customersData)
+    } catch (error) {
+      console.error("Error al cargar los clientes:", error)
+      toast.error("Error al cargar los clientes")
+    }
+  }
+
+  const handleCreateCustomer = async (data: CreateCustomerDTO) => {
+    try {
+      const newCustomer = await createCustomer(data)
+      setCustomers(prevCustomers => [...prevCustomers, newCustomer])
+      setFormData(prev => ({ ...prev, customer_id: newCustomer.id.toString() }))
+      setIsCreatingCustomer(false)
+      resetCustomer()
+      toast.success("Cliente creado exitosamente")
+    } catch (error) {
+      if (error instanceof Error) {
+        toast.error(`Error al crear el cliente: ${error.message}`)
+      } else {
+        toast.error("Error inesperado al crear el cliente")
+      }
+      console.error("Error en handleCreateCustomer:", error)
+    }
+  }
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [customersData, tablesData] = await Promise.all([
-          getAllCustomers(),
+        const [tablesData] = await Promise.all([
           getTables()
         ])
-        setCustomers(customersData)
         setTables(tablesData)
-        await fetchReservations()
+        await Promise.all([
+          fetchCustomers(),
+          fetchReservations()
+        ])
       } catch (error) {
         console.error("Error al cargar los datos:", error)
         toast.error("Error al cargar los datos")
@@ -75,6 +114,20 @@ export default function ReservasPage() {
     }
     fetchData()
   }, [])
+
+  const handleDialogClose = (open: boolean) => {
+    setIsDialogOpen(open)
+    if (!open) {
+      setIsCreatingCustomer(false)
+      resetCustomer()
+      setFormData({
+        customer_id: "",
+        table_id: "",
+        reservation_date: format(new Date(), "yyyy-MM-dd"),
+        reservation_time: "20:00"
+      })
+    }
+  }
 
   const handleReservationSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -107,6 +160,8 @@ export default function ReservasPage() {
       
       toast.success("Reserva creada con éxito")
       setIsDialogOpen(false)
+      setIsCreatingCustomer(false)
+      resetCustomer()
       setFormData({
         customer_id: "",
         table_id: "",
@@ -274,7 +329,7 @@ export default function ReservasPage() {
             </DialogContent>
           </Dialog>
 
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
@@ -295,8 +350,16 @@ export default function ReservasPage() {
                       Cliente
                     </Label>
                     <Select
-                      value={formData.customer_id}
-                      onValueChange={(value) => setFormData({ ...formData, customer_id: value })}
+                      value={isCreatingCustomer ? "new" : formData.customer_id}
+                      onValueChange={(value) => {
+                        if (value === "new") {
+                          setIsCreatingCustomer(true)
+                          setFormData({ ...formData, customer_id: "" })
+                        } else {
+                          setIsCreatingCustomer(false)
+                          setFormData({ ...formData, customer_id: value })
+                        }
+                      }}
                       required
                     >
                       <SelectTrigger id="customer" className="border-restaurant-stone/20 bg-white">
@@ -308,8 +371,98 @@ export default function ReservasPage() {
                             {customer.name} - {customer.phone}
                           </SelectItem>
                         ))}
+                        <SelectItem value="new" className="font-medium text-restaurant-gold">
+                          <Plus className="mr-2 h-4 w-4 inline" />
+                          Crear nuevo cliente
+                        </SelectItem>
                       </SelectContent>
                     </Select>
+                    
+                    {/* Formulario para crear nuevo cliente */}
+                    {isCreatingCustomer && (
+                      <Card className="border-restaurant-gold/30 bg-restaurant-ivory/50 p-4">
+                        <div className="space-y-4">
+                          <div className="grid gap-2">
+                            <Label htmlFor="new-customer-name" className="text-restaurant-black">
+                              Nombre Completo
+                            </Label>
+                            <Input
+                              id="new-customer-name"
+                              {...registerCustomer("name", { required: "El nombre es requerido" })}
+                              placeholder="Nombre y apellidos"
+                              className="border-restaurant-stone/20 bg-white"
+                            />
+                            {errorsCustomer.name && (
+                              <span className="text-sm text-red-500">{errorsCustomer.name.message}</span>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                              <Label htmlFor="new-customer-email" className="text-restaurant-black">
+                                Email
+                              </Label>
+                              <Input
+                                id="new-customer-email"
+                                type="email"
+                                {...registerCustomer("email", {
+                                  required: "El email es requerido",
+                                  pattern: {
+                                    value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                                    message: "Email inválido"
+                                  }
+                                })}
+                                placeholder="correo@ejemplo.com"
+                                className="border-restaurant-stone/20 bg-white"
+                              />
+                              {errorsCustomer.email && (
+                                <span className="text-sm text-red-500">{errorsCustomer.email.message}</span>
+                              )}
+                            </div>
+                            <div className="grid gap-2">
+                              <Label htmlFor="new-customer-phone" className="text-restaurant-black">
+                                Teléfono
+                              </Label>
+                              <Input
+                                id="new-customer-phone"
+                                {...registerCustomer("phone", {
+                                  required: "El teléfono es requerido",
+                                  pattern: {
+                                    value: /^[0-9]{10}$/,
+                                    message: "El teléfono debe tener 10 dígitos"
+                                  }
+                                })}
+                                placeholder="3146754323"
+                                className="border-restaurant-stone/20 bg-white"
+                              />
+                              {errorsCustomer.phone && (
+                                <span className="text-sm text-red-500">{errorsCustomer.phone.message}</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button 
+                              type="button"
+                              size="sm"
+                              onClick={handleSubmitCustomer(handleCreateCustomer)}
+                            >
+                              Crear Cliente
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setIsCreatingCustomer(false)
+                                resetCustomer()
+                              }}
+                              className="border-restaurant-stone/20 bg-white"
+                            >
+                              Cancelar
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    )}
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="table" className="text-restaurant-black">

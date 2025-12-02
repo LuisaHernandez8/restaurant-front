@@ -67,8 +67,21 @@ export const updateCustomer = async (id: number, customer: UpdateCustomerDTO): P
 export const deleteCustomer = async (id: number): Promise<void> => {
   try {
     await api.delete(`/customers/${id}`);
-  } catch (error) {
+  } catch (error: any) {
     console.error(`Error al eliminar el cliente ${id}:`, error);
+    
+    // Si es un error del servidor (500), intentar extraer el mensaje
+    if (error.response?.status === 500 || error.response?.status === 400) {
+      const errorMessage = error.response?.data?.message || 
+                          error.response?.data?.error ||
+                          'No se puede eliminar el cliente porque tiene reservas asociadas';
+      
+      // Crear un error personalizado con el mensaje del servidor
+      const customError = new Error(errorMessage);
+      (customError as any).status = error.response?.status;
+      throw customError;
+    }
+    
     throw error;
   }
 }; 

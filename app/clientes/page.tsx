@@ -255,8 +255,16 @@ export default function ClientesPage() {
       setCustomers(prevCustomers => prevCustomers.filter(c => c.id !== selectedCustomer.id))
       toast.success("Cliente eliminado exitosamente")
       setIsDeleteDialogOpen(false)
-    } catch (error) {
-      if (error instanceof Error) {
+    } catch (error: any) {
+      // Verificar si el error es porque el cliente tiene reservas asociadas
+      if (error?.message?.toLowerCase().includes('reserva') || 
+          error?.response?.status === 500 ||
+          error?.status === 500) {
+        toast.error(
+          "No se puede eliminar el cliente porque tiene reservas asociadas. Por favor, elimine primero las reservas del cliente.",
+          { duration: 5000 }
+        )
+      } else if (error instanceof Error) {
         toast.error(`Error al eliminar el cliente: ${error.message}`)
       } else {
         toast.error("Error inesperado al eliminar el cliente")
